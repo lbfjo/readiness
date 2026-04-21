@@ -1,0 +1,49 @@
+# CI: lint + typecheck only — no database or third-party API keys required.
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  readiness-web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: readiness-web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: readiness-web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+  readiness-python:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r readiness/requirements.txt
+
+      - name: Byte-compile entrypoints
+        run: python -m py_compile readiness/cli.py readiness/health_readiness/job_runner.py

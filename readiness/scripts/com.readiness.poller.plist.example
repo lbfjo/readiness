@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  TEMPLATE — copy, substitute paths, install under ~/Library/LaunchAgents/
+
+    cp readiness/scripts/com.readiness.poller.plist.example /tmp/rp.plist
+    # Edit /tmp/rp.plist: replace every PATH_TO_REPO with your clone path
+    cp /tmp/rp.plist ~/Library/LaunchAgents/com.readiness.poller.plist
+    launchctl load -w ~/Library/LaunchAgents/com.readiness.poller.plist
+
+  Polls Postgres job_queue every 60s. See README.md (repo root).
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.readiness.poller</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>PATH_TO_REPO/readiness/scripts/poll_job.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>PATH_TO_REPO</string>
+
+  <key>StartInterval</key>
+  <integer>60</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>PATH_TO_REPO/readiness/data/poller.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>PATH_TO_REPO/readiness/data/poller.stderr.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>PATH_TO_HOME</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>LANG</key>
+    <string>en_US.UTF-8</string>
+  </dict>
+
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+</dict>
+</plist>

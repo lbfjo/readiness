@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  TEMPLATE — copy, substitute paths, install under ~/Library/LaunchAgents/
+
+    cp readiness/scripts/com.readiness.morning.plist.example /tmp/rm.plist
+    # Edit /tmp/rm.plist: replace every PATH_TO_REPO and PATH_TO_HOME
+    cp /tmp/rm.plist ~/Library/LaunchAgents/com.readiness.morning.plist
+    launchctl load -w ~/Library/LaunchAgents/com.readiness.morning.plist
+
+  Adjust Hour/Minute for your timezone. Pair with `pmset` if you need wake-from-sleep.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.readiness.morning</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>PATH_TO_REPO/readiness/scripts/morning_job.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>PATH_TO_REPO</string>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>7</integer>
+    <key>Minute</key>
+    <integer>15</integer>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>PATH_TO_REPO/readiness/data/morning.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>PATH_TO_REPO/readiness/data/morning.stderr.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>PATH_TO_HOME</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>LANG</key>
+    <string>en_US.UTF-8</string>
+  </dict>
+
+  <key>ThrottleInterval</key>
+  <integer>600</integer>
+</dict>
+</plist>

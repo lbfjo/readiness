@@ -1,0 +1,54 @@
+# --- Secrets & local env (never commit real values) ---
+.env
+.env.local
+.env.*.local
+.envrc
+!.env.example
+!**/.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+.venv/
+venv/
+.python-version
+
+# --- Node / Next.js ---
+node_modules/
+**/node_modules/
+.next/
+out/
+build/
+dist/
+.turbo/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Local data & logs ---
+readiness/data/*
+!readiness/data/.gitkeep
+
+# --- Optional sibling repos (own git history; keep out of this project) ---
+coros-mcp/
+intervals-mcp-server/
+strava-mcp/
+
+# Machine-specific LaunchAgent plists (install from *.example)
+readiness/scripts/com.readiness.*.plist
+!readiness/scripts/com.readiness.*.plist.example
+
+# --- OS & editors ---
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# --- Deploy ---
+.vercel/
+*.pem
+
