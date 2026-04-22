@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { upsertCheckin } from "@/lib/contracts/checkin";
+import { upsertIssueCheckin } from "@/lib/contracts/issue";
 import { todayIsoDate } from "@/lib/time";
 
 /**
@@ -14,6 +15,16 @@ import { todayIsoDate } from "@/lib/time";
 
 const OptionalLikert = z
   .union([z.string().length(0), z.coerce.number().int().min(1).max(5)])
+  .optional()
+  .transform((v) => (typeof v === "number" ? v : null));
+
+const OptionalPain = z
+  .union([z.string().length(0), z.coerce.number().int().min(0).max(10)])
+  .optional()
+  .transform((v) => (typeof v === "number" ? v : null));
+
+const OptionalInteger = z
+  .union([z.string().length(0), z.coerce.number().int().min(0).max(180)])
   .optional()
   .transform((v) => (typeof v === "number" ? v : null));
 
@@ -33,6 +44,30 @@ const Schema = z.object({
   notes: z
     .string()
     .max(2000, "notes too long")
+    .optional()
+    .transform((v) => {
+      const trimmed = v?.trim() ?? "";
+      return trimmed.length > 0 ? trimmed : null;
+    }),
+  issueId: z
+    .union([z.string().length(0), z.coerce.number().int().positive()])
+    .optional()
+    .transform((v) => (typeof v === "number" ? v : null)),
+  firstStepPain: OptionalPain,
+  painWalking: OptionalPain,
+  painStairs: OptionalPain,
+  morningStiffnessMinutes: OptionalInteger,
+  limp: z
+    .union([z.literal("on"), z.literal("true"), z.literal("1"), z.literal("")])
+    .optional()
+    .transform((v) => v === "on" || v === "true" || v === "1"),
+  warmupResponse: z
+    .union([z.literal(""), z.literal("better"), z.literal("same"), z.literal("worse")])
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : null)),
+  issueNotes: z
+    .string()
+    .max(1000, "issue notes too long")
     .optional()
     .transform((v) => {
       const trimmed = v?.trim() ?? "";
@@ -59,6 +94,15 @@ export async function saveCheckin(
     stress: formData.get("stress")?.toString() || undefined,
     illness: formData.get("illness")?.toString() || undefined,
     notes: formData.get("notes")?.toString() || undefined,
+    issueId: formData.get("issueId")?.toString() || undefined,
+    firstStepPain: formData.get("firstStepPain")?.toString() || undefined,
+    painWalking: formData.get("painWalking")?.toString() || undefined,
+    painStairs: formData.get("painStairs")?.toString() || undefined,
+    morningStiffnessMinutes:
+      formData.get("morningStiffnessMinutes")?.toString() || undefined,
+    limp: formData.get("limp")?.toString() || undefined,
+    warmupResponse: formData.get("warmupResponse")?.toString() || undefined,
+    issueNotes: formData.get("issueNotes")?.toString() || undefined,
   };
 
   const parsed = Schema.safeParse(raw);
@@ -94,6 +138,20 @@ export async function saveCheckin(
       illness: parsed.data.illness,
       notes: parsed.data.notes ?? undefined,
     });
+
+    if (parsed.data.issueId) {
+      await upsertIssueCheckin({
+        issueId: parsed.data.issueId,
+        date: parsed.data.date,
+        firstStepPain: parsed.data.firstStepPain,
+        painWalking: parsed.data.painWalking,
+        painStairs: parsed.data.painStairs,
+        morningStiffnessMinutes: parsed.data.morningStiffnessMinutes,
+        limp: parsed.data.limp,
+        warmupResponse: parsed.data.warmupResponse,
+        notes: parsed.data.issueNotes,
+      });
+    }
 
     revalidatePath("/check-in");
     revalidatePath("/today");

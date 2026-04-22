@@ -126,6 +126,8 @@ export default async function TodayPage() {
         </div>
       </section>
 
+      {summary.decision ? <DecisionSupportSection summary={summary} /> : null}
+
       <TodayPlanned
         planned={summary.plannedSessions}
         completed={summary.stravaToday}
@@ -250,6 +252,133 @@ function subtitleForStatus(status: string | null | undefined) {
   if (lower.includes("caut")) return "Proceed with caution. Consider scaling intensity.";
   if (lower.includes("low")) return "Prioritize recovery. Keep it easy today.";
   return "Check the drivers below for context.";
+}
+
+function DecisionSupportSection({ summary }: { summary: TodaySummary }) {
+  const decision = summary.decision;
+  if (!decision) return null;
+
+  return (
+    <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.05fr_1fr_1fr]">
+      <Panel>
+        <SectionTitle
+          title="Today’s Decision"
+          action={<Chip label={decisionLabel(decision.decision)} tone={decisionTone(decision.decision)} />}
+        />
+        <div className="space-y-3">
+          <p className="font-display text-xl font-semibold text-white">{decision.title}</p>
+          <p className="text-sm leading-relaxed text-[var(--color-muted)]">{decision.summary}</p>
+          <div className="flex flex-wrap gap-2">
+            <Chip label={`Priority: ${priorityLabel(decision.priority)}`} tone="good" />
+            <Chip label={`${decision.issueLabel} · ${decision.tissueBand} tissue`} tone="muted" />
+          </div>
+          {decision.recommendedModification ? (
+            <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]/50 px-4 py-3 text-sm text-[var(--color-muted)]">
+              <p className="font-display text-[11px] font-semibold uppercase tracking-[0.18em] text-white">
+                Recommended modification
+              </p>
+              <p className="mt-2 text-white">
+                {decision.recommendedModification.replaceWith}
+                {decision.recommendedModification.durationMinutes
+                  ? ` · ${decision.recommendedModification.durationMinutes} min`
+                  : ""}
+              </p>
+              {decision.recommendedModification.constraints?.length ? (
+                <p className="mt-1">
+                  {decision.recommendedModification.constraints.join(" · ")}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </Panel>
+
+      <Panel>
+        <SectionTitle title="Why" />
+        <ul className="space-y-2 text-sm text-[var(--color-muted)]">
+          {decision.reasons.map((reason) => (
+            <li key={reason} className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]/40 px-4 py-3">
+              {reason}
+            </li>
+          ))}
+        </ul>
+      </Panel>
+
+      <Panel>
+        <SectionTitle title="Rehab Today" />
+        {decision.rehabToday ? (
+          <div className="space-y-4">
+            <div>
+              <p className="font-display text-lg font-semibold text-white">
+                {decision.rehabToday.title}
+              </p>
+              <ul className="mt-3 space-y-2 text-sm text-[var(--color-muted)]">
+                {decision.rehabToday.items.map((item) => (
+                  <li key={item} className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]/40 px-4 py-3">
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            {decision.rehabToday.avoid.length ? (
+              <div>
+                <p className="font-display text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--color-muted)]">
+                  Avoid today
+                </p>
+                <p className="mt-2 text-sm text-[var(--color-muted)]">
+                  {decision.rehabToday.avoid.join(" · ")}
+                </p>
+              </div>
+            ) : null}
+            {decision.redFlags.length ? (
+              <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                <p className="font-display text-[11px] font-semibold uppercase tracking-[0.18em]">
+                  Red flags
+                </p>
+                <p className="mt-2">{decision.redFlags.join(" · ")}</p>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--color-muted)]">No rehab prescription generated.</p>
+        )}
+      </Panel>
+    </section>
+  );
+}
+
+function decisionLabel(value: TodaySummary["decision"] extends infer T ? any : never) {
+  switch (value) {
+    case "go_as_planned":
+      return "Go as planned";
+    case "reduce_load":
+      return "Reduce load";
+    case "swap_session":
+      return "Swap session";
+    case "rehab_only":
+      return "Rehab only";
+    default:
+      return "Decision";
+  }
+}
+
+function decisionTone(value: string): "default" | "good" | "muted" {
+  if (value === "go_as_planned") return "good";
+  if (value === "rehab_only") return "default";
+  return "muted";
+}
+
+function priorityLabel(value: string) {
+  switch (value) {
+    case "protect_tissue":
+      return "Protect tissue";
+    case "maintain_consistency":
+      return "Maintain consistency";
+    case "progress_training":
+      return "Progress training";
+    default:
+      return value;
+  }
 }
 
 function Chip({ label, tone = "default" }: { label: string; tone?: "default" | "good" | "muted" }) {

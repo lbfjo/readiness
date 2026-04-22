@@ -1,5 +1,6 @@
 import { EmptyState } from "@/components/empty-state";
 import { getCheckin, getCheckinHistory } from "@/lib/contracts/checkin";
+import { getActiveIssue, getIssueCheckin } from "@/lib/contracts/issue";
 import { addDaysIso } from "@/lib/contracts/trends";
 import { appTimezone, todayIsoDate } from "@/lib/time";
 import { CheckInForm } from "./form";
@@ -20,11 +21,13 @@ async function loadInitial(date: string) {
   }
   try {
     const fromDate = addDaysIso(date, -(HISTORY_DAYS - 1));
-    const [row, history] = await Promise.all([
+    const [row, history, activeIssue] = await Promise.all([
       getCheckin(date),
       getCheckinHistory(fromDate, date),
+      safeGetActiveIssue(),
     ]);
-    return { ok: true as const, row, history };
+    const issueCheckin = activeIssue ? await safeGetIssueCheckin(activeIssue.id, date) : null;
+    return { ok: true as const, row, history, activeIssue, issueCheckin };
   } catch (err) {
     return {
       ok: false as const,
@@ -55,7 +58,12 @@ export default async function CheckInPage() {
 
       {loaded.ok ? (
         <>
-          <CheckInForm date={date} initial={loaded.row} />
+          <CheckInForm
+            date={date}
+            initial={loaded.row}
+            activeIssue={loaded.activeIssue}
+            initialIssueCheckin={loaded.issueCheckin}
+          />
           <CheckinHeatmap history={loaded.history} today={date} days={HISTORY_DAYS} />
         </>
       ) : (
@@ -66,4 +74,20 @@ export default async function CheckInPage() {
       )}
     </div>
   );
+}
+
+async function safeGetActiveIssue() {
+  try {
+    return await getActiveIssue();
+  } catch {
+    return null;
+  }
+}
+
+async function safeGetIssueCheckin(issueId: number, date: string) {
+  try {
+    return await getIssueCheckin(issueId, date);
+  } catch {
+    return null;
+  }
 }

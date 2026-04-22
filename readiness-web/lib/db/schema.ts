@@ -132,6 +132,56 @@ export const subjectiveCheckins = pgTable("subjective_checkins", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 });
 
+export const activeIssues = pgTable(
+  "active_issues",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    slug: text("slug"),
+    area: text("area").notNull(),
+    subtype: text("subtype"),
+    label: text("label").notNull(),
+    side: text("side"),
+    status: text("status").notNull(),
+    stage: text("stage").notNull(),
+    suspectedIssue: text("suspected_issue"),
+    triggerMovementsJson: jsonb("trigger_movements_json"),
+    aggravatorsJson: jsonb("aggravators_json"),
+    relieversJson: jsonb("relievers_json"),
+    notes: text("notes"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (t) => ({
+    statusIdx: index("active_issues_status_idx").on(t.status),
+    areaIdx: index("active_issues_area_idx").on(t.area),
+  }),
+);
+
+export const issueCheckins = pgTable(
+  "issue_checkins",
+  {
+    issueId: integer("issue_id").notNull(),
+    date: text("date").notNull(),
+    firstStepPain: integer("first_step_pain"),
+    painWalking: integer("pain_walking"),
+    painStairs: integer("pain_stairs"),
+    painDuringActivity: integer("pain_during_activity"),
+    painAfterActivity: integer("pain_after_activity"),
+    morningStiffnessMinutes: integer("morning_stiffness_minutes"),
+    limp: boolean("limp").default(false),
+    warmupResponse: text("warmup_response"),
+    mechanicsChanged: boolean("mechanics_changed").default(false),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.issueId, t.date] }),
+    dateIdx: index("issue_checkins_date_idx").on(t.date),
+  }),
+);
+
 export const readinessScores = pgTable("readiness_scores", {
   date: text("date").primaryKey(),
   modelVersion: text("model_version").notNull().default("v1"),
@@ -216,6 +266,8 @@ export type Activity = typeof activities.$inferSelect;
 export type StravaActivity = typeof stravaActivities.$inferSelect;
 export type PlannedSession = typeof plannedSessions.$inferSelect;
 export type SubjectiveCheckin = typeof subjectiveCheckins.$inferSelect;
+export type ActiveIssue = typeof activeIssues.$inferSelect;
+export type IssueCheckin = typeof issueCheckins.$inferSelect;
 export type ReadinessScore = typeof readinessScores.$inferSelect;
 export type SyncRun = typeof syncRuns.$inferSelect;
 export type AiInsight = typeof aiInsights.$inferSelect;

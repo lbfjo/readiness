@@ -1,5 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
+import { buildDailyDecision } from "@/lib/decision-support/engine";
+import { getActiveIssue, getIssueCheckin } from "@/lib/contracts/issue";
 import {
   aiInsights,
   plannedSessions,
@@ -19,12 +21,13 @@ import type { SourceFreshness, TodaySummary } from "./types";
 export async function getTodaySummary(date: string): Promise<TodaySummary> {
   const db = getDb();
 
-  const [score, sleep, checkin, planned, strava] = await Promise.all([
+  const [score, sleep, checkin, planned, strava, activeIssue] = await Promise.all([
     db.select().from(readinessScores).where(eq(readinessScores.date, date)).limit(1),
     db.select().from(sleepRecords).where(eq(sleepRecords.date, date)).limit(1),
     db.select().from(subjectiveCheckins).where(eq(subjectiveCheckins.date, date)).limit(1),
     db.select().from(plannedSessions).where(eq(plannedSessions.date, date)),
     db.select().from(stravaActivities).where(eq(stravaActivities.localDay, date)),
+    safeGetActiveIssue(),
   ]);
 
   const insight = await db
@@ -35,17 +38,44 @@ export async function getTodaySummary(date: string): Promise<TodaySummary> {
     .limit(1);
 
   const freshness = await loadFreshness();
+  const issueCheckin = activeIssue ? await safeGetIssueCheckin(activeIssue.id, date) : null;
+  const decision = buildDailyDecision({
+    issue: activeIssue,
+    issueCheckin,
+    planned,
+    score: score[0] ?? null,
+    checkin: checkin[0] ?? null,
+  });
 
   return {
     date,
     score: score[0] ?? null,
     sleep: sleep[0] ?? null,
     checkin: checkin[0] ?? null,
+    activeIssue,
+    issueCheckin,
     plannedSessions: planned,
     stravaToday: strava,
     freshness,
     insight: insight[0] ?? null,
+    decision,
   };
+}
+
+async function safeGetActiveIssue() {
+  try {
+    return await getActiveIssue();
+  } catch {
+    return null;
+  }
+}
+
+async function safeGetIssueCheckin(issueId: number, date: string) {
+  try {
+    return await getIssueCheckin(issueId, date);
+  } catch {
+    return null;
+  }
 }
 
 async function loadFreshness(): Promise<SourceFreshness[]> {
