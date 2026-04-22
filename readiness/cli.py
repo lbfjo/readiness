@@ -26,6 +26,27 @@ from health_readiness.scoring import decode_json_list, score_rows
 # drag their transitive dependencies (keyring, cryptography, coros-mcp, etc.)
 # into the import graph.
 
+ROOT = Path(__file__).resolve().parents[1]
+ENV_PATH = ROOT / "readiness" / ".env"
+
+
+def _load_env_file(path: Path = ENV_PATH) -> None:
+    """Best-effort `.env` loader for direct CLI usage.
+
+    `morning_job.sh` already exports `readiness/.env` before invoking the CLI,
+    but direct calls like `python readiness/cli.py morning` previously skipped
+    that step. We use `setdefault` so explicit shell env vars still override
+    file-based values.
+    """
+    if not path.exists():
+        return
+    for raw_line in path.read_text().splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
 
 def _mirror(conn, tables=None) -> None:
     """Push the given SQLite tables to Postgres if DATABASE_URL is set.
@@ -471,6 +492,7 @@ def command_strava_summary(conn, limit: int) -> None:
 
 
 def main() -> None:
+    _load_env_file()
     args = parse_args()
     conn = db.connect(args.db)
     db.init_db(conn)

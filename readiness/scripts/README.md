@@ -78,6 +78,16 @@ Common gotchas:
 ## Manual backfill / one-off runs
 
 ```bash
+# Daily operator entrypoint: refresh everything, print the latest summary,
+# and start the local web app on http://localhost:3000/today.
+readiness/scripts/day_start.sh
+
+# Refresh only, without starting the web app.
+readiness/scripts/day_start.sh --refresh-only
+
+# Start the web app only.
+readiness/scripts/day_start.sh --no-refresh
+
 # One-shot copy SQLite -> Neon.
 python readiness/scripts/backfill_sqlite_to_postgres.py \
   --sqlite readiness/data/readiness.sqlite
