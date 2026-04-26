@@ -144,8 +144,8 @@ def parse_args() -> argparse.Namespace:
     strava_summary = sub.add_parser("strava-summary", help="Summarize Strava activity by day")
     strava_summary.add_argument("--limit", type=int, default=14, help="Number of days to show")
 
-    intervals_sync = sub.add_parser("intervals-sync", help="Sync Intervals planned sessions into SQLite")
-    intervals_sync.add_argument("--weeks", type=int, default=4, help="Number of future weeks to sync")
+    intervals_sync = sub.add_parser("intervals-sync", help="Sync Intervals wellness and planned sessions into SQLite")
+    intervals_sync.add_argument("--weeks", type=int, default=4, help="Number of past/future weeks to sync")
 
     intervals_import = sub.add_parser("intervals-import", help="Import planned sessions from a JSON file")
     intervals_import.add_argument("path", type=Path)
@@ -315,12 +315,44 @@ def command_strava_sync(conn, weeks: int) -> None:
 
 
 def command_intervals_sync(conn, weeks: int) -> None:
-    from health_readiness.intervals_client import fetch_events_for_weeks
+    from datetime import timedelta
 
-    events = fetch_events_for_weeks(weeks)
-    count = db.upsert_planned_sessions(conn, events)
-    print(f"Synced {count} planned Intervals sessions.")
-    _mirror(conn, tables=["planned_sessions"])
+    from health_readiness.intervals_client import fetch_events, fetch_wellness
+
+    today = date.today()
+    start = today - timedelta(weeks=max(1, weeks))
+    end = today + timedelta(weeks=max(1, weeks))
+    sync_id = db.create_sync_run(
+        conn,
+        start.strftime("%Y%m%d"),
+        end.strftime("%Y%m%d"),
+        source="intervals",
+    )
+
+    try:
+        wellness = fetch_wellness(start, today)
+        wellness_counts = db.upsert_intervals_wellness(conn, wellness)
+        events = fetch_events(today, end)
+        planned_count = db.upsert_planned_sessions(conn, events)
+        db.finish_sync_run(
+            conn,
+            sync_id,
+            "success",
+            daily_count=wellness_counts["daily"],
+            sleep_count=wellness_counts["sleep"],
+            activity_count=planned_count,
+        )
+    except Exception as exc:
+        db.finish_sync_run(conn, sync_id, "failed", error=str(exc))
+        raise
+
+    print(
+        "Synced Intervals: "
+        f"{wellness_counts['daily']} wellness rows, "
+        f"{wellness_counts['sleep']} sleep rows, "
+        f"{planned_count} planned sessions."
+    )
+    _mirror(conn, tables=["daily_metrics", "sleep_records", "planned_sessions", "sync_runs"])
 
 
 def command_intervals_import(conn, path: Path) -> None:

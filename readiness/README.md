@@ -1,6 +1,6 @@
 # Readiness CLI
 
-Local Coros-backed health readiness storage and scoring.
+Local health readiness storage and scoring, with Coros and Intervals.icu data sources.
 
 ## Commands
 
@@ -37,7 +37,7 @@ readiness/data/readiness.sqlite
 6. `report` writes a static HTML dashboard to `readiness/data/report.html`.
 7. `strava-sync` imports Strava activities using the token stored by the Strava MCP.
 8. `strava-summary` compares daily Strava volume with Coros load fields.
-9. `intervals-sync` imports planned sessions from Intervals.icu.
+9. `intervals-sync` imports Intervals.icu wellness, sleep, and planned sessions.
 10. `planned-today` shows the planned sessions for a day.
 
 The scoring model is intentionally transparent and stored with component scores and driver text so the dashboard can explain each recommendation.
@@ -48,10 +48,10 @@ Scores are stored with `model_version` so future calibration changes are traceab
 
 Current model: `v2`
 
-- HRV is scored against Coros HRV baseline.
+- HRV is scored against the available provider baseline when present.
 - Resting HR is scored against a recent 14-day median, with the penalty capped so one high value cannot zero out the whole day.
 - Sleep is scored from duration and awake time.
-- Training load uses Coros load ratio and tired rate.
+- Training load uses provider load ratio and fatigue/form fields.
 - Subjective check-in is included when available.
 
 ## Strava
@@ -66,7 +66,9 @@ The readiness CLI reuses that token store. Coros remains the primary readiness s
 
 ## Intervals.icu
 
-Intervals planned sessions are stored separately in `planned_sessions`.
+Intervals wellness data is mapped into `daily_metrics` and `sleep_records` so
+the current scoring engine can run without Coros. Planned sessions are stored
+separately in `planned_sessions`.
 
 The CLI reads Intervals credentials from environment variables:
 

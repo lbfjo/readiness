@@ -28,6 +28,7 @@ def connect(db_path: Path = DEFAULT_DB) -> sqlite3.Connection:
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA.read_text())
     ensure_column(conn, "readiness_scores", "model_version", "TEXT NOT NULL DEFAULT 'v1'")
+    ensure_column(conn, "sync_runs", "source", "TEXT NOT NULL DEFAULT 'cli'")
     conn.commit()
 
 
@@ -313,6 +314,166 @@ def upsert_planned_sessions(conn: sqlite3.Connection, records: list[dict[str, An
     return len(rows)
 
 
+def _intervals_date(value: str | None) -> str | None:
+    if not value:
+        return None
+    return value[:10].replace("-", "")
+
+
+def _as_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(round(float(value)))
+    except (TypeError, ValueError):
+        return None
+
+
+def _as_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _intervals_load_ratio(atl: Any, ctl: Any) -> float | None:
+    atl_f = _as_float(atl)
+    ctl_f = _as_float(ctl)
+    if atl_f is None or ctl_f is None or ctl_f == 0:
+        return None
+    return atl_f / ctl_f
+
+
+def upsert_intervals_wellness(conn: sqlite3.Connection, records: list[dict[str, Any]]) -> dict[str, int]:
+    """Map Intervals wellness rows into the current scoring tables.
+
+    This is a transition adapter. Intervals is the hosted source, while the
+    scoring engine still reads the older `daily_metrics` and `sleep_records`
+    shapes. Raw Intervals rows are preserved in both tables for later remapping.
+    """
+    ts = now_iso()
+    daily_rows = []
+    sleep_rows = []
+
+    for item in records:
+        day = _intervals_date(item.get("id"))
+        if not day:
+            continue
+
+        atl = item.get("atl")
+        ctl = item.get("ctl")
+        hrv = item.get("hrv") if item.get("hrv") is not None else item.get("hrvSDNN")
+        sleep_secs = _as_int(item.get("sleepSecs"))
+        sleep_minutes = sleep_secs // 60 if sleep_secs is not None else None
+        tired_rate = None
+        atl_f = _as_float(atl)
+        ctl_f = _as_float(ctl)
+        if atl_f is not None and ctl_f is not None:
+            tired_rate = atl_f - ctl_f
+
+        daily_rows.append((
+            day,
+            _as_float(hrv),
+            None,
+            json_dumps(item.get("sportInfo") or []),
+            _as_int(item.get("restingHR")),
+            _as_int(item.get("atlLoad") if item.get("atlLoad") is not None else item.get("ctlLoad")),
+            _intervals_load_ratio(atl, ctl),
+            tired_rate,
+            _as_float(atl),
+            _as_float(ctl),
+            _as_int(item.get("readiness")),
+            None,
+            None,
+            _as_int(item.get("vo2max")),
+            None,
+            None,
+            None,
+            None,
+            json_dumps(item),
+            ts,
+        ))
+
+        if any(item.get(k) is not None for k in ("sleepSecs", "avgSleepingHR", "sleepScore", "sleepQuality")):
+            sleep_rows.append((
+                day,
+                sleep_minutes,
+                None,
+                None,
+                None,
+                None,
+                None,
+                _as_int(item.get("avgSleepingHR")),
+                None,
+                None,
+                _as_int(item.get("sleepScore") if item.get("sleepScore") is not None else item.get("sleepQuality")),
+                json_dumps(item),
+                ts,
+            ))
+
+    conn.executemany(
+        """
+        INSERT INTO daily_metrics (
+          date, avg_sleep_hrv, baseline, interval_list_json, rhr, training_load,
+          training_load_ratio, tired_rate, ati, cti, performance, distance,
+          duration, vo2max, lthr, ltsp, stamina_level, stamina_level_7d,
+          raw_json, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(date) DO UPDATE SET
+          avg_sleep_hrv = COALESCE(excluded.avg_sleep_hrv, daily_metrics.avg_sleep_hrv),
+          baseline = COALESCE(daily_metrics.baseline, excluded.baseline),
+          interval_list_json = excluded.interval_list_json,
+          rhr = COALESCE(excluded.rhr, daily_metrics.rhr),
+          training_load = COALESCE(excluded.training_load, daily_metrics.training_load),
+          training_load_ratio = COALESCE(excluded.training_load_ratio, daily_metrics.training_load_ratio),
+          tired_rate = COALESCE(excluded.tired_rate, daily_metrics.tired_rate),
+          ati = COALESCE(excluded.ati, daily_metrics.ati),
+          cti = COALESCE(excluded.cti, daily_metrics.cti),
+          performance = COALESCE(excluded.performance, daily_metrics.performance),
+          distance = COALESCE(excluded.distance, daily_metrics.distance),
+          duration = COALESCE(excluded.duration, daily_metrics.duration),
+          vo2max = COALESCE(excluded.vo2max, daily_metrics.vo2max),
+          lthr = COALESCE(excluded.lthr, daily_metrics.lthr),
+          ltsp = COALESCE(excluded.ltsp, daily_metrics.ltsp),
+          stamina_level = COALESCE(excluded.stamina_level, daily_metrics.stamina_level),
+          stamina_level_7d = COALESCE(excluded.stamina_level_7d, daily_metrics.stamina_level_7d),
+          raw_json = excluded.raw_json,
+          updated_at = excluded.updated_at
+        """,
+        daily_rows,
+    )
+
+    conn.executemany(
+        """
+        INSERT INTO sleep_records (
+          date, total_duration_minutes, deep_minutes, light_minutes, rem_minutes,
+          awake_minutes, nap_minutes, avg_hr, min_hr, max_hr, quality_score,
+          raw_json, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(date) DO UPDATE SET
+          total_duration_minutes = COALESCE(excluded.total_duration_minutes, sleep_records.total_duration_minutes),
+          deep_minutes = COALESCE(excluded.deep_minutes, sleep_records.deep_minutes),
+          light_minutes = COALESCE(excluded.light_minutes, sleep_records.light_minutes),
+          rem_minutes = COALESCE(excluded.rem_minutes, sleep_records.rem_minutes),
+          awake_minutes = COALESCE(excluded.awake_minutes, sleep_records.awake_minutes),
+          nap_minutes = COALESCE(excluded.nap_minutes, sleep_records.nap_minutes),
+          avg_hr = COALESCE(excluded.avg_hr, sleep_records.avg_hr),
+          min_hr = COALESCE(excluded.min_hr, sleep_records.min_hr),
+          max_hr = COALESCE(excluded.max_hr, sleep_records.max_hr),
+          quality_score = COALESCE(excluded.quality_score, sleep_records.quality_score),
+          raw_json = excluded.raw_json,
+          updated_at = excluded.updated_at
+        """,
+        sleep_rows,
+    )
+    conn.commit()
+    return {"daily": len(daily_rows), "sleep": len(sleep_rows)}
+
+
 def planned_sessions_for_day(conn: sqlite3.Connection, day: str) -> list[sqlite3.Row]:
     return list(conn.execute(
         """
@@ -348,13 +509,18 @@ def strava_daily_summary(conn: sqlite3.Connection, limit: int = 14) -> list[sqli
     ))
 
 
-def create_sync_run(conn: sqlite3.Connection, start_day: str, end_day: str) -> int:
+def create_sync_run(
+    conn: sqlite3.Connection,
+    start_day: str,
+    end_day: str,
+    source: str = "coros",
+) -> int:
     cur = conn.execute(
         """
-        INSERT INTO sync_runs (started_at, status, start_day, end_day)
-        VALUES (?, 'running', ?, ?)
+        INSERT INTO sync_runs (source, started_at, status, start_day, end_day)
+        VALUES (?, ?, 'running', ?, ?)
         """,
-        (now_iso(), start_day, end_day),
+        (source, now_iso(), start_day, end_day),
     )
     conn.commit()
     return int(cur.lastrowid)

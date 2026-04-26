@@ -48,12 +48,12 @@ def credentials() -> tuple[str, str]:
     return athlete_id, api_key
 
 
-def fetch_events(start: date, end: date) -> list[dict[str, Any]]:
+def _request_json(path: str, params: dict[str, str] | None = None) -> Any:
     athlete_id, api_key = credentials()
-    params = urllib.parse.urlencode({"oldest": ymd(start), "newest": ymd(end)})
+    query = f"?{urllib.parse.urlencode(params)}" if params else ""
     auth = base64.b64encode(f"API_KEY:{api_key}".encode("utf-8")).decode("ascii")
     request = urllib.request.Request(
-        f"{BASE_URL}/athlete/{athlete_id}/events?{params}",
+        f"{BASE_URL}/athlete/{athlete_id}/{path}{query}",
         headers={
             "Accept": "application/json",
             "Authorization": f"Basic {auth}",
@@ -61,7 +61,11 @@ def fetch_events(start: date, end: date) -> list[dict[str, Any]]:
         },
     )
     with urllib.request.urlopen(request, timeout=30) as response:
-        body = json.loads(response.read().decode("utf-8"))
+        return json.loads(response.read().decode("utf-8"))
+
+
+def fetch_events(start: date, end: date) -> list[dict[str, Any]]:
+    body = _request_json("events", {"oldest": ymd(start), "newest": ymd(end)})
     return body if isinstance(body, list) else []
 
 
@@ -69,3 +73,14 @@ def fetch_events_for_weeks(weeks: int) -> list[dict[str, Any]]:
     today = date.today()
     end = today + timedelta(weeks=max(1, weeks))
     return fetch_events(today, end)
+
+
+def fetch_wellness(start: date, end: date) -> list[dict[str, Any]]:
+    body = _request_json("wellness", {"oldest": ymd(start), "newest": ymd(end)})
+    return body if isinstance(body, list) else []
+
+
+def fetch_wellness_for_weeks(weeks: int) -> list[dict[str, Any]]:
+    end = date.today()
+    start = end - timedelta(weeks=max(1, weeks))
+    return fetch_wellness(start, end)
