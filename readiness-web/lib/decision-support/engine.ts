@@ -16,8 +16,16 @@ function readinessBand(score: number | null | undefined): "green" | "yellow" | "
 
 function tissueBand(issueCheckin: IssueCheckin | null): "green" | "yellow" | "red" {
   if (!issueCheckin) return "yellow";
+  const hasMorningSymptoms =
+    (issueCheckin.firstStepPain ?? 0) > 0 ||
+    (issueCheckin.painWalking ?? 0) > 0 ||
+    (issueCheckin.painStairs ?? 0) > 0 ||
+    (issueCheckin.morningStiffnessMinutes ?? 0) > 0;
+
   if (
     (issueCheckin.firstStepPain ?? 0) >= 5 ||
+    (issueCheckin.painWalking ?? 0) >= 5 ||
+    (issueCheckin.painStairs ?? 0) >= 5 ||
     issueCheckin.limp ||
     issueCheckin.warmupResponse === "worse" ||
     issueCheckin.mechanicsChanged
@@ -26,8 +34,10 @@ function tissueBand(issueCheckin: IssueCheckin | null): "green" | "yellow" | "re
   }
   if (
     (issueCheckin.firstStepPain ?? 0) >= 3 ||
+    (issueCheckin.painWalking ?? 0) >= 3 ||
+    (issueCheckin.painStairs ?? 0) >= 3 ||
     (issueCheckin.morningStiffnessMinutes ?? 0) > 0 ||
-    issueCheckin.warmupResponse === "same"
+    (hasMorningSymptoms && issueCheckin.warmupResponse === "same")
   ) {
     return "yellow";
   }
@@ -69,6 +79,10 @@ export function buildDailyDecision({
   const reasonCodes: string[] = [];
   const redFlags: string[] = [];
 
+  if (tBand === "green") {
+    reasons.push("Morning Achilles check-in is green: no pain, stiffness, limp, or compensation reported.");
+    reasonCodes.push("ACHILLES_TISSUE_GREEN");
+  }
   if ((issueCheckin?.firstStepPain ?? 0) >= 3) {
     reasons.push(`First-step pain is ${issueCheckin?.firstStepPain}/10 this morning.`);
     reasonCodes.push("ACHILLES_FIRST_STEP_PAIN_ELEVATED");
@@ -187,9 +201,12 @@ export function buildDailyDecision({
     readinessBand: rBand,
     tissueBand: tBand,
     decision: "go_as_planned",
-    priority: "progress_training",
+    priority: impactRisk === "high" ? "maintain_consistency" : "progress_training",
     title: "Go as planned",
-    summary: "The Achilles looks calm enough for the planned low-risk work. Keep the session controlled and continue rehab afterwards.",
+    summary:
+      impactRisk === "high"
+        ? "The Achilles looks calm enough to proceed, but keep the run controlled and avoid adding hills, speed, or extra volume."
+        : "The Achilles looks calm enough for the planned low-risk work. Keep the session controlled and continue rehab afterwards.",
     reasonCodes,
     reasons,
     recommendedModification: null,

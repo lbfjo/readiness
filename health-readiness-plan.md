@@ -34,13 +34,13 @@ Setup status:
 Manual step still required:
 
 ```bash
-/Users/franciscobruno/Desktop/dev/personal/coros-mcp/.venv/bin/coros-mcp auth
+/Users/franciscobruno/dev/personal/coros-mcp/.venv/bin/coros-mcp auth
 ```
 
 This will ask for your Coros email, password, and region. The full auth flow stores both web and mobile tokens; the mobile token is needed for sleep data and may log you out of the Coros mobile app. If you want to avoid that initially, run:
 
 ```bash
-/Users/franciscobruno/Desktop/dev/personal/coros-mcp/.venv/bin/coros-mcp auth-web
+/Users/franciscobruno/dev/personal/coros-mcp/.venv/bin/coros-mcp auth-web
 ```
 
 ### Strava
@@ -200,7 +200,7 @@ Use the first 2-4 weeks of data to tune the model:
 1. Run Coros authentication:
 
 ```bash
-/Users/franciscobruno/Desktop/dev/personal/coros-mcp/.venv/bin/coros-mcp auth
+/Users/franciscobruno/dev/personal/coros-mcp/.venv/bin/coros-mcp auth
 ```
 
 2. Restart Codex so the new MCP server is loaded.

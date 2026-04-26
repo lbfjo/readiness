@@ -93,16 +93,19 @@ set +a
 export PATH="${READINESS_EXTRA_PATH:+$READINESS_EXTRA_PATH:}/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
 resolve_python() {
-  if [[ -n "${READINESS_PYTHON:-}" ]]; then
+  local candidate
+  if [[ -n "${READINESS_PYTHON:-}" ]] && "$READINESS_PYTHON" -c 'pass' >/dev/null 2>&1; then
     printf '%s\n' "$READINESS_PYTHON"
     return
   fi
-  if [[ -x "$REPO_ROOT/coros-mcp/.venv/bin/python" ]]; then
-    printf '%s\n' "$REPO_ROOT/coros-mcp/.venv/bin/python"
+  candidate="$REPO_ROOT/coros-mcp/.venv/bin/python"
+  if [[ -x "$candidate" ]] && "$candidate" -c 'pass' >/dev/null 2>&1; then
+    printf '%s\n' "$candidate"
     return
   fi
-  if [[ -x /opt/homebrew/bin/python3.13 ]]; then
-    printf '%s\n' /opt/homebrew/bin/python3.13
+  candidate="/opt/homebrew/bin/python3.13"
+  if [[ -x "$candidate" ]] && "$candidate" -c 'pass' >/dev/null 2>&1; then
+    printf '%s\n' "$candidate"
     return
   fi
   command -v python3
@@ -175,10 +178,16 @@ log "starting day-start (python=$PYTHON_BIN, weeks=$WEEKS, web_port=$WEB_PORT)"
 
 if [[ "$RUN_REFRESH" -eq 1 ]]; then
   log "running morning pipeline"
-  (
+  if (
     cd "$REPO_ROOT"
     "$MORNING_SCRIPT" --weeks "$WEEKS"
-  )
+  ); then
+    :
+  else
+    status=$?
+    log "ERROR: morning pipeline failed with exit code $status; see $ROOT/data/morning.log"
+    exit "$status"
+  fi
 fi
 
 show_summary

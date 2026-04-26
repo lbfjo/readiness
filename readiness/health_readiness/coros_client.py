@@ -22,7 +22,12 @@ def yyyymmdd(value: date) -> str:
 async def fetch_coros_sample(weeks: int) -> dict[str, Any]:
     auth = coros_api.get_stored_auth()
     if auth is None:
-        raise RuntimeError("Coros is not authenticated. Run coros-mcp auth first.")
+        auth = await coros_api.try_auto_login()
+    if auth is None:
+        raise RuntimeError(
+            "Coros is not authenticated. Run coros-mcp auth first, or set "
+            "COROS_EMAIL and COROS_PASSWORD in readiness/.env for automatic login."
+        )
 
     weeks = max(1, min(weeks, 24))
     end = date.today()

@@ -17,6 +17,7 @@ const INITIAL_STATE: CheckinActionState = { status: "idle" };
 
 export function CheckInForm({ date, initial, activeIssue, initialIssueCheckin }: Props) {
   const [state, formAction] = useActionState(saveCheckin, INITIAL_STATE);
+  const notesId = "checkin-notes";
 
   return (
     <form action={formAction} className="space-y-6">
@@ -57,13 +58,17 @@ export function CheckInForm({ date, initial, activeIssue, initialIssueCheckin }:
       ) : null}
 
       <div className="space-y-2">
-        <label className="flex items-center justify-between font-display text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--color-muted)]">
+        <label
+          htmlFor={notesId}
+          className="flex items-center justify-between font-display text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--color-muted)]"
+        >
           <span>Notes</span>
           <span className="text-[10px] normal-case tracking-normal text-[var(--color-subtle)]">
             optional
           </span>
         </label>
         <textarea
+          id={notesId}
           name="notes"
           defaultValue={initial?.notes ?? ""}
           rows={3}
@@ -94,6 +99,9 @@ function IssueSection({
   issue: ActiveIssue;
   initial: IssueCheckin | null;
 }) {
+  const stiffnessId = "issue-morning-stiffness";
+  const issueNotesId = "issue-notes";
+
   return (
     <section className="space-y-4 rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)]/40 px-4 py-4">
       <div>
@@ -126,6 +134,7 @@ function IssueSection({
           initial={initial?.painStairs ?? null}
         />
         <NumberField
+          id={stiffnessId}
           name="morningStiffnessMinutes"
           label="Morning stiffness"
           help="How many minutes until it settles?"
@@ -146,13 +155,17 @@ function IssueSection({
       </div>
 
       <div className="space-y-2">
-        <label className="flex items-center justify-between font-display text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--color-muted)]">
+        <label
+          htmlFor={issueNotesId}
+          className="flex items-center justify-between font-display text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--color-muted)]"
+        >
           <span>Issue notes</span>
           <span className="text-[10px] normal-case tracking-normal text-[var(--color-subtle)]">
             optional
           </span>
         </label>
         <textarea
+          id={issueNotesId}
           name="issueNotes"
           defaultValue={initial?.notes ?? ""}
           rows={2}
@@ -246,6 +259,7 @@ function PainField({
 }
 
 function NumberField({
+  id,
   name,
   label,
   help,
@@ -253,6 +267,7 @@ function NumberField({
   placeholder,
   unit,
 }: {
+  id: string;
   name: string;
   label: string;
   help: string;
@@ -262,7 +277,10 @@ function NumberField({
 }) {
   return (
     <div className="space-y-2">
-      <label className="flex items-baseline justify-between font-display text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--color-muted)]">
+      <label
+        htmlFor={id}
+        className="flex items-baseline justify-between font-display text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--color-muted)]"
+      >
         <span>{label}</span>
         <span className="text-[11px] normal-case tracking-normal text-[var(--color-subtle)]">
           {help}
@@ -270,6 +288,7 @@ function NumberField({
       </label>
       <div className="relative">
         <input
+          id={id}
           type="number"
           min={0}
           max={180}
@@ -301,15 +320,17 @@ function ToggleField({
   return (
     <div className="flex items-center justify-between rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]/40 px-4 py-3">
       <div>
-        <p className="font-display text-[11px] font-semibold uppercase tracking-[0.22em] text-white">
+        <p id={`${name}-label`} className="font-display text-[11px] font-semibold uppercase tracking-[0.22em] text-white">
           {label}
         </p>
-        <p className="text-xs text-[var(--color-muted)]">{help}</p>
+        <p id={`${name}-help`} className="text-xs text-[var(--color-muted)]">{help}</p>
       </div>
       <button
         type="button"
         role="switch"
         aria-checked={on}
+        aria-labelledby={`${name}-label`}
+        aria-describedby={`${name}-help`}
         onClick={() => setOn((v) => !v)}
         className={`relative h-7 w-12 rounded-full border transition ${
           on

@@ -17,7 +17,6 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "$ROOT/.." && pwd)"
 ENV_FILE="$ROOT/.env"
 LOG_FILE="$ROOT/data/morning.log"
-PYTHON_BIN="${READINESS_PYTHON:-/opt/homebrew/bin/python3.13}"
 
 mkdir -p "$(dirname "$LOG_FILE")"
 
@@ -34,6 +33,8 @@ fi
 set -a
 . "$ENV_FILE"
 set +a
+
+PYTHON_BIN="${READINESS_PYTHON:-/opt/homebrew/bin/python3.13}"
 
 # See poll_job.sh — codex / custom tools via READINESS_EXTRA_PATH in readiness/.env
 export PATH="${READINESS_EXTRA_PATH:+$READINESS_EXTRA_PATH:}/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"

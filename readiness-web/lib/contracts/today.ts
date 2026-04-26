@@ -82,17 +82,22 @@ async function loadFreshness(): Promise<SourceFreshness[]> {
   const db = getDb();
   const sources: SourceFreshness["source"][] = ["coros", "strava", "intervals"];
   const results: SourceFreshness[] = [];
+  const isSuccess = (status: string) => ["ok", "success", "succeeded"].includes(status);
 
   for (const source of sources) {
-    const rows = await db
+    let rows = await db
       .select()
       .from(syncRuns)
       .where(eq(syncRuns.source, source))
       .orderBy(desc(syncRuns.startedAt))
       .limit(10);
 
+    if (rows.length === 0) {
+      rows = await db.select().from(syncRuns).orderBy(desc(syncRuns.startedAt)).limit(10);
+    }
+
     const lastRun = rows[0] ?? null;
-    const lastSuccess = rows.find((r) => r.status === "ok") ?? null;
+    const lastSuccess = rows.find((r) => isSuccess(r.status)) ?? null;
 
     results.push({
       source,
@@ -101,7 +106,7 @@ async function loadFreshness(): Promise<SourceFreshness[]> {
         ? new Date(lastSuccess.finishedAt).toISOString()
         : null,
       latestImportedDate: lastSuccess?.endDay ?? null,
-      lastError: lastRun && lastRun.status !== "ok" ? (lastRun.error ?? null) : null,
+      lastError: lastRun && !isSuccess(lastRun.status) ? (lastRun.error ?? null) : null,
     });
   }
 
