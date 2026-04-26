@@ -6,6 +6,8 @@ import { appTimezone, todayIsoDate } from "@/lib/time";
 import { CheckInForm } from "./form";
 import { CheckinHeatmap } from "./heatmap";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Server-rendered shell for the check-in page. We fetch today's existing row
  * on the server so the form is pre-filled, then hand off to the client

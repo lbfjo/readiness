@@ -8,7 +8,14 @@ import { jobQueue, type JobQueueRow } from "@/lib/db/schema";
  * deliberately small: enqueue, fetch one, fetch the latest of a kind.
  */
 
-export const JOB_KINDS = ["refresh", "sync", "score", "insight"] as const;
+export const JOB_KINDS = [
+  "refresh",
+  "intervals_refresh",
+  "sync",
+  "intervals_sync",
+  "score",
+  "insight",
+] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 export const TERMINAL_STATUSES = ["succeeded", "failed", "cancelled"] as const;
@@ -62,6 +69,15 @@ export async function getLatestJob(
     .orderBy(desc(jobQueue.requestedAt))
     .limit(1);
   return rows[0] ?? null;
+}
+
+export async function getRecentJobs(limit = 12): Promise<JobQueueRow[]> {
+  const db = getDb();
+  return db
+    .select()
+    .from(jobQueue)
+    .orderBy(desc(jobQueue.requestedAt))
+    .limit(limit);
 }
 
 /**

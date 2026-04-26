@@ -6,7 +6,6 @@ import {
   Bike,
   ChevronRight,
   Dumbbell as BarbellIcon,
-  Droplet,
   Dumbbell,
   Footprints,
   HeartPulse,
@@ -27,6 +26,8 @@ import { getTodaySummary } from "@/lib/contracts/today";
 import type { TodaySummary } from "@/lib/contracts/types";
 import { appTimezone, formatRelative, todayIsoDate } from "@/lib/time";
 
+export const dynamic = "force-dynamic";
+
 async function loadSummary(): Promise<
   { ok: true; summary: TodaySummary } | { ok: false; error: string }
 > {
@@ -45,7 +46,7 @@ async function loadSummary(): Promise<
 async function safeGetLatestRefreshJob(): Promise<JobQueueRow | null> {
   if (!process.env.DATABASE_URL) return null;
   try {
-    return await getLatestJob(["refresh"]);
+    return await getLatestJob(["intervals_refresh"]);
   } catch {
     return null;
   }
@@ -347,7 +348,7 @@ function DecisionSupportSection({ summary }: { summary: TodaySummary }) {
   );
 }
 
-function decisionLabel(value: TodaySummary["decision"] extends infer T ? any : never) {
+function decisionLabel(value: NonNullable<TodaySummary["decision"]>["decision"]) {
   switch (value) {
     case "go_as_planned":
       return "Go as planned";

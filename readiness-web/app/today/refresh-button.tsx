@@ -18,7 +18,7 @@ type UiState =
   | { kind: "failed"; message: string };
 
 /**
- * Kicks off a full "refresh" job (sync + score + insight) on the laptop
+ * Kicks off an Intervals-first refresh job (sync + score + insight) on the
  * poller. The button polls GET /api/jobs/:id every 2s until the job leaves
  * the pending/running set, then refreshes the page so the new data shows.
  */
@@ -39,7 +39,7 @@ export function RefreshButton({ initialLatestJob }: Props) {
       const res = await fetch("/api/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: "refresh", requestedBy: "today-page" }),
+        body: JSON.stringify({ kind: "intervals_refresh", requestedBy: "today-page" }),
       });
       const body = await res.json();
       if (!res.ok || !body.job) {
