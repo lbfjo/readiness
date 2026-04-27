@@ -271,7 +271,17 @@ function DecisionSupportSection({ summary }: { summary: TodaySummary }) {
           <p className="text-sm leading-relaxed text-[var(--color-muted)]">{decision.summary}</p>
           <div className="flex flex-wrap gap-2">
             <Chip label={`Priority: ${priorityLabel(decision.priority)}`} tone="good" />
+            <Chip label={`Goal: ${humanize(decision.primaryGoal)}`} tone="muted" />
+            <Chip label={`Limiter: ${humanize(decision.limiter)}`} tone="muted" />
             <Chip label={`${decision.issueLabel} · ${decision.tissueBand} tissue`} tone="muted" />
+          </div>
+          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]/40 px-4 py-3 text-xs text-[var(--color-muted)]">
+            <p className="font-display text-[10px] font-semibold uppercase tracking-[0.18em] text-white">
+              Session classification
+            </p>
+            <p className="mt-2">
+              {humanize(decision.session.sessionType)} · {decision.session.cost} cost · {decision.session.injuryRisk} injury risk
+            </p>
           </div>
           {decision.recommendedModification ? (
             <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]/50 px-4 py-3 text-sm text-[var(--color-muted)]">
@@ -367,6 +377,10 @@ function decisionTone(value: string): "default" | "good" | "muted" {
   if (value === "go_as_planned") return "good";
   if (value === "rehab_only") return "default";
   return "muted";
+}
+
+function humanize(value: string) {
+  return value.replaceAll("_", " ");
 }
 
 function priorityLabel(value: string) {

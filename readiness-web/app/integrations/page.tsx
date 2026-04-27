@@ -57,7 +57,20 @@ export default async function IntegrationsPage() {
       ) : (
         <>
           <section>
-            <SectionTitle title="Sources" />
+            <SectionTitle
+              title="Sources"
+              action={
+                loaded.status.workerHeartbeat ? (
+                  <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-muted)]">
+                    Worker {loaded.status.workerHeartbeat.status ?? "unknown"} · {formatRelative(loaded.status.workerHeartbeat.updated_at)}
+                  </span>
+                ) : (
+                  <span className="text-[10px] uppercase tracking-[0.18em] text-rose-300">
+                    No worker heartbeat
+                  </span>
+                )
+              }
+            />
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               {loaded.status.sources.map((source) => (
                 <SourceCard key={source.source} source={source} />

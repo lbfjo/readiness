@@ -1,6 +1,6 @@
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
-import { syncRuns, type SyncRun } from "@/lib/db/schema";
+import { settings, syncRuns, type SyncRun } from "@/lib/db/schema";
 import { getRecentJobs } from "./jobs";
 import type { JobQueueRow } from "@/lib/db/schema";
 import type { SourceFreshness } from "./types";
@@ -11,19 +11,28 @@ export type IntegrationStatus = {
   sources: SourceFreshness[];
   recentRuns: SyncRun[];
   recentJobs: JobQueueRow[];
+  workerHeartbeat: {
+    status?: string;
+    pid?: number;
+    updated_at?: string;
+  } | null;
 };
 
 export async function getIntegrationStatus(): Promise<IntegrationStatus> {
   const db = getDb();
-  const [runs, jobs] = await Promise.all([
+  const [runs, jobs, heartbeatRows] = await Promise.all([
     db.select().from(syncRuns).orderBy(desc(syncRuns.startedAt)).limit(30),
     getRecentJobs(12),
+    db.select().from(settings).where(eq(settings.key, "worker_heartbeat")).limit(1),
   ]);
 
   return {
     sources: SOURCES.map((source) => freshnessFor(source, runs)),
     recentRuns: runs,
     recentJobs: jobs,
+    workerHeartbeat: heartbeatRows[0]?.value && typeof heartbeatRows[0].value === "object"
+      ? heartbeatRows[0].value
+      : null,
   };
 }
 
