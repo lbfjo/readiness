@@ -1,5 +1,4 @@
 import { Panel, SectionTitle } from "@/components/section";
-import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { settings } from "@/lib/db/schema";
 import { revalidatePath } from "next/cache";
@@ -12,7 +11,7 @@ async function loadSettings(): Promise<SettingsMap> {
   if (!process.env.DATABASE_URL) return {};
   try {
     const db = getDb();
-  const rows = await db.select().from(settings);
+    const rows = await db.select().from(settings);
     const map: SettingsMap = {};
     for (const row of rows) {
       map[row.key] = row.value;

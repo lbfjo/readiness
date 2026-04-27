@@ -1,10 +1,8 @@
-import Link from "next/link";
 import { createElement } from "react";
 import {
   Activity,
   ArrowUpRight,
   Bike,
-  ChevronRight,
   Dumbbell as BarbellIcon,
   Dumbbell,
   Footprints,
@@ -15,7 +13,7 @@ import {
   Waves,
   Wind,
 } from "lucide-react";
-import type { JobQueueRow, PlannedSession, StravaActivity } from "@/lib/db/schema";
+import type { IntervalsActivity, JobQueueRow, PlannedSession } from "@/lib/db/schema";
 import { getLatestJob } from "@/lib/contracts/jobs";
 import { RefreshButton } from "./refresh-button";
 import { EmptyState } from "@/components/empty-state";
@@ -88,7 +86,7 @@ export default async function TodayPage() {
         </div>
         <div className="space-y-4">
           <p className="font-display text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--color-muted)]">
-            Today · {summary.date}
+            Today · {formatDateLabel(summary.date)}
           </p>
           <h1 className="font-display text-3xl font-bold leading-tight text-white">
             {summary.score?.recommendation ?? "Readiness will appear here after the morning sync."}
@@ -131,10 +129,13 @@ export default async function TodayPage() {
 
       <TodayPlanned
         planned={summary.plannedSessions}
-        completed={summary.stravaToday}
+        completed={summary.intervalsToday}
       />
 
-      <TodayActivities activities={summary.stravaToday} />
+      <TodayActivities
+        activities={summary.intervalsToday}
+        planned={summary.plannedSessions}
+      />
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1fr]">
         <Panel>
@@ -163,9 +164,9 @@ export default async function TodayPage() {
               </p>
             </div>
           </div>
-          <div className="mt-5 flex gap-3">
-            <PrimaryButton>Start plan</PrimaryButton>
-            <GhostButton>Regenerate insight</GhostButton>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <GhostButton disabled>Start plan unavailable</GhostButton>
+            <GhostButton disabled>Regenerate unavailable</GhostButton>
           </div>
         </Panel>
 
@@ -445,22 +446,18 @@ function LinkPill({ href, children }: { href: string; children: React.ReactNode 
   );
 }
 
-function PrimaryButton({ children }: { children: React.ReactNode }) {
+function GhostButton({
+  children,
+  disabled = false,
+}: {
+  children: React.ReactNode;
+  disabled?: boolean;
+}) {
   return (
     <button
       type="button"
-      className="inline-flex items-center gap-2 rounded-full bg-[var(--color-accent)] px-5 py-2 font-display text-xs font-bold uppercase tracking-[0.2em] text-[#0b1320] transition hover:brightness-110"
-    >
-      {children}
-    </button>
-  );
-}
-
-function GhostButton({ children }: { children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border-strong)] bg-transparent px-5 py-2 font-display text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-[var(--color-surface-2)]"
+      disabled={disabled}
+      className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border-strong)] bg-transparent px-5 py-2 font-display text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-[var(--color-surface-2)] disabled:cursor-not-allowed disabled:border-[var(--color-border)] disabled:text-[var(--color-subtle)] disabled:hover:bg-transparent"
     >
       {children}
     </button>
@@ -546,13 +543,34 @@ function toneFromScore(score: number | null): DriverTone {
 }
 
 type PlannedRaw = {
+  paired_activity_id?: string | number | null;
+  activity_id?: string | number | null;
+  category?: string;
   moving_time?: number;
   icu_training_load?: number;
   icu_intensity?: number;
   distance?: number;
   workout_doc?: {
+    steps?: WorkoutStep[];
     zoneTimes?: Array<{ id: string; secs: number }>;
   };
+};
+
+type WorkoutTarget = {
+  units?: string;
+  value?: string | number;
+};
+
+type WorkoutStep = {
+  text?: string;
+  reps?: number;
+  duration?: number;
+  distance?: number;
+  steps?: WorkoutStep[];
+  pace?: WorkoutTarget;
+  hr?: WorkoutTarget;
+  power?: WorkoutTarget;
+  cadence?: WorkoutTarget;
 };
 
 function plannedRaw(session: PlannedSession): PlannedRaw {
@@ -561,33 +579,16 @@ function plannedRaw(session: PlannedSession): PlannedRaw {
   return {};
 }
 
-// Very small sport-category mapper. Intervals uses "Run" / "Ride" / "Swim" /
-// "Walk" / "WeightTraining" etc.; Strava uses e.g. "Run" / "TrailRun" /
-// "VirtualRun" / "Ride" / "MountainBikeRide" / "Swim" / "Hike". Anything we
-// don't recognise falls back to "other" so we don't match by accident.
-type SportCategory = "run" | "ride" | "swim" | "walk" | "strength" | "other";
-
-function sportCategory(value: string | null | undefined): SportCategory {
-  const key = (value ?? "").toLowerCase();
-  if (key.includes("ride") || key.includes("cycl") || key.includes("bike")) return "ride";
-  if (key.includes("run")) return "run";
-  if (key.includes("swim")) return "swim";
-  if (key.includes("walk") || key.includes("hike")) return "walk";
-  if (key.includes("weight") || key.includes("strength") || key.includes("lift")) {
-    return "strength";
-  }
-  return "other";
-}
-
 function matchedActivity(
   session: PlannedSession,
-  completed: StravaActivity[],
-): StravaActivity | null {
-  const target = sportCategory(session.type);
-  if (target === "other") return null;
-  return (
-    completed.find((a) => sportCategory(a.sportType ?? a.type) === target) ?? null
-  );
+  completed: IntervalsActivity[],
+): IntervalsActivity | null {
+  const raw = plannedRaw(session);
+  const pairedId = raw.paired_activity_id ? String(raw.paired_activity_id) : null;
+  if (pairedId) {
+    return completed.find((a) => a.activityId === pairedId) ?? null;
+  }
+  return completed.find((a) => a.pairedEventId === session.eventId) ?? null;
 }
 
 function TodayPlanned({
@@ -595,7 +596,7 @@ function TodayPlanned({
   completed,
 }: {
   planned: PlannedSession[];
-  completed: StravaActivity[];
+  completed: IntervalsActivity[];
 }) {
   // Defensive filter: only show real workouts (category=WORKOUT).
   // TARGET (weekly volume goals) and NOTE (calendar labels) are noise.
@@ -672,7 +673,7 @@ function PlannedCard({
   match,
 }: {
   session: PlannedSession;
-  match: StravaActivity | null;
+  match: IntervalsActivity | null;
 }) {
   const raw = plannedRaw(session);
   const plannedIcon = iconForSport(session.type);
@@ -683,6 +684,7 @@ function PlannedCard({
     typeof raw.icu_intensity === "number" ? Math.round(raw.icu_intensity) : null;
   const distanceKm = raw.distance && raw.distance > 0 ? raw.distance / 1000 : null;
   const topZone = pickDominantZone(raw.workout_doc?.zoneTimes);
+  const steps = raw.workout_doc?.steps?.filter(hasStepContent) ?? [];
   const description = (session.description ?? "").trim();
   const descriptionShort =
     description.length > 140 ? `${description.slice(0, 137)}…` : description;
@@ -735,20 +737,128 @@ function PlannedCard({
             </span>
           ) : null}
         </div>
-        {descriptionShort ? (
+        {steps.length > 0 ? (
+          <WorkoutSteps steps={steps} />
+        ) : descriptionShort ? (
           <p className="truncate text-xs text-[var(--color-subtle)]">
             {descriptionShort}
           </p>
         ) : null}
         {done && match ? (
           <p className="text-[11px] text-[var(--color-accent)]">
-            Logged as {match.name ?? match.sportType ?? "activity"}
+            Matched in Intervals as {match.name}
             {match.movingTime ? ` · ${formatDurationShort(match.movingTime)}` : ""}
           </p>
         ) : null}
       </div>
     </Panel>
   );
+}
+
+function WorkoutSteps({ steps }: { steps: WorkoutStep[] }) {
+  return (
+    <ol className="mt-3 space-y-2">
+      {steps.map((step, index) => (
+        <WorkoutStepItem key={`${index}-${step.text ?? step.duration ?? step.distance ?? "step"}`} step={step} />
+      ))}
+    </ol>
+  );
+}
+
+function WorkoutStepItem({ step }: { step: WorkoutStep }) {
+  const childSteps = step.steps?.filter(hasStepContent) ?? [];
+  const isRepeat = typeof step.reps === "number" && step.reps > 1 && childSteps.length > 0;
+
+  if (isRepeat) {
+    return (
+      <li className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]/35 px-3 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="font-display text-[11px] font-semibold uppercase tracking-[0.16em] text-white">
+            {formatRepeatLabel(step)}
+          </span>
+          <span className="text-[11px] text-[var(--color-subtle)]">
+            {formatStepTotals(step)}
+          </span>
+        </div>
+        <ul className="mt-2 space-y-1">
+          {childSteps.map((child, index) => (
+            <li
+              key={`${index}-${child.duration ?? child.distance ?? "child"}`}
+              className="flex items-center gap-2 text-xs text-[var(--color-muted)]"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]/70" />
+              <span>{formatStepLine(child)}</span>
+            </li>
+          ))}
+        </ul>
+      </li>
+    );
+  }
+
+  return (
+    <li className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]/35 px-3 py-2 text-xs text-[var(--color-muted)]">
+      {formatStepLine(step)}
+    </li>
+  );
+}
+
+function hasStepContent(step: WorkoutStep): boolean {
+  return Boolean(
+    step.text ||
+      step.reps ||
+      step.duration ||
+      step.distance ||
+      step.pace ||
+      step.hr ||
+      step.power ||
+      step.cadence ||
+      step.steps?.some(hasStepContent),
+  );
+}
+
+function formatRepeatLabel(step: WorkoutStep): string {
+  if (step.text && /^[\d.]+x$/i.test(step.text.trim())) return step.text.trim();
+  return `${step.reps}x`;
+}
+
+function formatStepTotals(step: WorkoutStep): string {
+  const parts = [formatDistance(step.distance), formatDurationMaybe(step.duration)]
+    .filter(Boolean);
+  return parts.join(" · ");
+}
+
+function formatStepLine(step: WorkoutStep): string {
+  const target = formatTarget(step);
+  const duration = formatDurationMaybe(step.duration);
+  const parts = [formatDistance(step.distance), duration, target]
+    .filter(Boolean);
+  if (step.duration && step.duration <= 30 && !step.distance && !target) {
+    return `Rest ${duration}`;
+  }
+  if (parts.length === 0 && step.text) return step.text;
+  return parts.join(" · ");
+}
+
+function formatDistance(meters: number | undefined): string | null {
+  if (!meters || !Number.isFinite(meters) || meters <= 0) return null;
+  if (meters >= 1000) return `${(meters / 1000).toFixed(1)} km`;
+  return `${Math.round(meters)} m`;
+}
+
+function formatTarget(step: WorkoutStep): string | null {
+  const entries: Array<[string, WorkoutTarget | undefined]> = [
+    ["Pace", step.pace],
+    ["HR", step.hr],
+    ["Power", step.power],
+    ["Cadence", step.cadence],
+  ];
+  for (const [label, target] of entries) {
+    if (!target || target.value == null) continue;
+    const units = target.units ?? "";
+    if (units.includes("zone")) return `Z${target.value} ${label}`;
+    return `${target.value} ${units || label}`.trim();
+  }
+  return null;
 }
 
 function pickDominantZone(
@@ -764,7 +874,13 @@ function pickDominantZone(
   return match ? Number(match[1]) : null;
 }
 
-function TodayActivities({ activities }: { activities: StravaActivity[] }) {
+function TodayActivities({
+  activities,
+  planned,
+}: {
+  activities: IntervalsActivity[];
+  planned: PlannedSession[];
+}) {
   if (activities.length === 0) {
     return (
       <section>
@@ -772,14 +888,14 @@ function TodayActivities({ activities }: { activities: StravaActivity[] }) {
           title="Today's Workouts"
           action={
             <span className="font-display text-[10px] uppercase tracking-[0.18em] text-[var(--color-subtle)]">
-              via Strava
+              via Intervals
             </span>
           }
         />
         <Panel className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 text-sm text-[var(--color-muted)]">
             <Activity className="h-4 w-4 text-[var(--color-subtle)]" />
-            <span>No workouts logged yet today.</span>
+            <span>No completed Intervals workouts synced for today yet.</span>
           </div>
           <span className="font-display text-[10px] uppercase tracking-[0.18em] text-[var(--color-subtle)]">
             Updates after sync
@@ -790,7 +906,7 @@ function TodayActivities({ activities }: { activities: StravaActivity[] }) {
   }
 
   const totalLoad = activities.reduce(
-    (acc, a) => acc + (typeof a.sufferScore === "number" ? a.sufferScore : 0),
+    (acc, a) => acc + (a.trainingLoad ?? 0),
     0,
   );
   const totalSeconds = activities.reduce((acc, a) => acc + (a.movingTime ?? 0), 0);
@@ -805,9 +921,9 @@ function TodayActivities({ activities }: { activities: StravaActivity[] }) {
         title="Today's Workouts"
         action={
           <span className="font-display text-[10px] uppercase tracking-[0.18em] text-[var(--color-subtle)]">
-            {activities.length} · {formatDurationShort(totalSeconds)}
+            via Intervals · {activities.length} · {formatDurationShort(totalSeconds)}
             {totalKm > 0.1 ? ` · ${totalKm.toFixed(1)} km` : ""}
-            {totalLoad > 0 ? ` · ${totalLoad} suffer` : ""}
+            {totalLoad > 0 ? ` · ${totalLoad} load` : ""}
           </span>
         }
       />
@@ -815,36 +931,41 @@ function TodayActivities({ activities }: { activities: StravaActivity[] }) {
         {activities
           .slice()
           .sort((a, b) => {
-            const ta = a.startDate ? new Date(a.startDate).getTime() : 0;
-            const tb = b.startDate ? new Date(b.startDate).getTime() : 0;
+            const ta = a.startDateLocal ? new Date(a.startDateLocal).getTime() : 0;
+            const tb = b.startDateLocal ? new Date(b.startDateLocal).getTime() : 0;
             return tb - ta;
           })
           .map((a) => (
-            <ActivityCard key={a.activityId} activity={a} />
+            <ActivityCard
+              key={a.activityId}
+              activity={a}
+              plannedName={planned.find((p) => p.eventId === a.pairedEventId)?.name ?? null}
+            />
           ))}
       </div>
     </section>
   );
 }
 
-function ActivityCard({ activity }: { activity: StravaActivity }) {
-  const activityIcon = iconForSport(activity.sportType);
-  const duration = formatDurationShort(activity.movingTime ?? 0);
+function ActivityCard({
+  activity,
+  plannedName,
+}: {
+  activity: IntervalsActivity;
+  plannedName: string | null;
+}) {
+  const activityIcon = iconForSport(activity.type);
+  const duration = activity.movingTime
+    ? formatDurationShort(activity.movingTime)
+    : null;
   const km = activity.distanceMeters ? activity.distanceMeters / 1000 : null;
   const pace = km && activity.movingTime ? activity.movingTime / 60 / km : null;
   const time = activity.startDateLocal
     ? formatTimeOfDay(activity.startDateLocal)
-    : activity.startDate
-      ? formatTimeOfDay(activity.startDate)
-      : null;
+    : null;
 
   return (
-    <Link
-      href={`/activity/${encodeURIComponent(activity.activityId)}`}
-      className="group block rounded-3xl outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0e14]"
-      aria-label={`Open details for ${activity.name ?? "workout"}`}
-    >
-      <Panel className="flex items-start gap-4 transition group-hover:border-[var(--color-accent)]/35">
+    <Panel className="flex items-start gap-4">
         <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[var(--color-accent-soft)]">
           {createElement(activityIcon, {
             className: "h-5 w-5 text-[var(--color-accent)]",
@@ -853,7 +974,7 @@ function ActivityCard({ activity }: { activity: StravaActivity }) {
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-start justify-between gap-2">
             <p className="truncate font-display text-sm font-semibold text-white">
-              {activity.name ?? activity.sportType ?? "Workout"}
+              {activity.name}
             </p>
             <div className="flex shrink-0 items-center gap-1">
               {time ? (
@@ -861,17 +982,24 @@ function ActivityCard({ activity }: { activity: StravaActivity }) {
                   {time}
                 </span>
               ) : null}
-              <ChevronRight className="h-4 w-4 text-[var(--color-subtle)] transition group-hover:text-[var(--color-accent)]" />
+              <span className="rounded-full border border-[var(--color-accent)]/40 bg-[var(--color-accent-soft)] px-2 py-0.5 font-display text-[10px] uppercase tracking-[0.14em] text-[var(--color-accent)]">
+                Done
+              </span>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--color-muted)]">
-            <span className="inline-flex items-center gap-1">
-              <Timer className="h-3 w-3" />
-              {duration}
-            </span>
+            {duration ? (
+              <span className="inline-flex items-center gap-1">
+                <Timer className="h-3 w-3" />
+                {duration}
+              </span>
+            ) : null}
             {km ? <span>{km.toFixed(1)} km</span> : null}
-            {pace && (activity.sportType === "Run" || activity.sportType === "Walk") ? (
+            {pace && (activity.type === "Run" || activity.type === "Walk") ? (
               <span>{formatPace(pace)}/km</span>
+            ) : null}
+            {activity.intensity ? (
+              <span>Intensity {Math.round(activity.intensity)}</span>
             ) : null}
             {activity.averageHr ? (
               <span className="inline-flex items-center gap-1">
@@ -879,15 +1007,16 @@ function ActivityCard({ activity }: { activity: StravaActivity }) {
                 {Math.round(activity.averageHr)} bpm
               </span>
             ) : null}
-            {activity.sufferScore ? (
+            {activity.trainingLoad ? (
               <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5 font-display text-[10px] uppercase tracking-[0.14em] text-[var(--color-muted)]">
-                Suffer {Math.round(activity.sufferScore)}
+                Load {activity.trainingLoad}
               </span>
             ) : null}
+            {plannedName ? <span>Matched to {plannedName}</span> : null}
+            {activity.source ? <span>{activity.source}</span> : null}
           </div>
         </div>
-      </Panel>
-    </Link>
+    </Panel>
   );
 }
 
@@ -902,10 +1031,16 @@ function iconForSport(sport: string | null): React.ComponentType<{ className?: s
 
 function formatDurationShort(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return "0m";
+  if (seconds < 60) return `${Math.round(seconds)}s`;
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   if (h > 0) return `${h}h ${m.toString().padStart(2, "0")}m`;
   return `${m}m`;
+}
+
+function formatDurationMaybe(seconds: number | undefined): string | null {
+  if (!seconds || !Number.isFinite(seconds) || seconds <= 0) return null;
+  return formatDurationShort(seconds);
 }
 
 function formatPace(minutesPerKm: number): string {
