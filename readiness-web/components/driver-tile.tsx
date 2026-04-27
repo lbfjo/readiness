@@ -24,7 +24,7 @@ export function DriverTile({
     neutral: "text-white",
   }[tone];
 
-  const display = value === null || value === undefined || value === "" ? "—" : value;
+  const display = value === null || value === undefined || value === "" ? "No data" : value;
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]/80 p-4 shadow-sm backdrop-blur">

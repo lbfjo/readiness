@@ -914,6 +914,18 @@ function formatPace(minutesPerKm: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+function formatDateLabel(raw: string): string {
+  // Convert "20260427" or "2026-04-27" → "27 Apr 2026"
+  const cleaned = raw.replace(/-/g, "");
+  if (cleaned.length !== 8) return raw;
+  const y = cleaned.slice(0, 4);
+  const m = cleaned.slice(4, 6);
+  const d = cleaned.slice(6, 8);
+  const date = new Date(Number(y), Number(m) - 1, Number(d));
+  if (Number.isNaN(date.getTime())) return raw;
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(date);
+}
+
 function formatTimeOfDay(value: Date | string): string {
   const d = typeof value === "string" ? new Date(value) : value;
   if (Number.isNaN(d.getTime())) return "";
