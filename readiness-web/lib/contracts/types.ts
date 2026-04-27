@@ -1,11 +1,11 @@
 import type {
   ActiveIssue,
   AiInsight,
+  IntervalsActivity,
   IssueCheckin,
   PlannedSession,
   ReadinessScore,
   SleepRecord,
-  StravaActivity,
   SubjectiveCheckin,
   SyncRun,
 } from "@/lib/db/schema";
@@ -26,7 +26,7 @@ export type TodaySummary = {
   activeIssue: ActiveIssue | null;
   issueCheckin: IssueCheckin | null;
   plannedSessions: PlannedSession[];
-  stravaToday: StravaActivity[];
+  intervalsToday: IntervalsActivity[];
   freshness: SourceFreshness[];
   insight: AiInsight | null;
   decision: DailyDecision | null;

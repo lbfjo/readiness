@@ -4,10 +4,10 @@ import { getPersistedDecision } from "@/lib/contracts/daily-decision";
 import { getActiveIssue, getIssueCheckin } from "@/lib/contracts/issue";
 import {
   aiInsights,
+  intervalsActivities,
   plannedSessions,
   readinessScores,
   sleepRecords,
-  stravaActivities,
   subjectiveCheckins,
   syncRuns,
 } from "@/lib/db/schema";
@@ -21,12 +21,12 @@ import type { SourceFreshness, TodaySummary } from "./types";
 export async function getTodaySummary(date: string): Promise<TodaySummary> {
   const db = getDb();
 
-  const [score, sleep, checkin, planned, strava, activeIssue] = await Promise.all([
+  const [score, sleep, checkin, planned, intervalsToday, activeIssue] = await Promise.all([
     db.select().from(readinessScores).where(eq(readinessScores.date, date)).limit(1),
     db.select().from(sleepRecords).where(eq(sleepRecords.date, date)).limit(1),
     db.select().from(subjectiveCheckins).where(eq(subjectiveCheckins.date, date)).limit(1),
     db.select().from(plannedSessions).where(eq(plannedSessions.date, date)),
-    db.select().from(stravaActivities).where(eq(stravaActivities.localDay, date)),
+    db.select().from(intervalsActivities).where(eq(intervalsActivities.localDay, date)),
     safeGetActiveIssue(),
   ]);
 
@@ -49,7 +49,7 @@ export async function getTodaySummary(date: string): Promise<TodaySummary> {
     activeIssue,
     issueCheckin,
     plannedSessions: planned,
-    stravaToday: strava,
+    intervalsToday,
     freshness,
     insight: insight[0] ?? null,
     decision,

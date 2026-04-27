@@ -120,6 +120,35 @@ export const plannedSessions = pgTable(
   }),
 );
 
+export const intervalsActivities = pgTable(
+  "intervals_activities",
+  {
+    activityId: text("activity_id").primaryKey(),
+    localDay: text("local_day"),
+    pairedEventId: text("paired_event_id"),
+    name: text("name"),
+    type: text("type"),
+    startDate: timestamp("start_date", { withTimezone: true }),
+    startDateLocal: timestamp("start_date_local", { withTimezone: false }),
+    movingTime: integer("moving_time"),
+    elapsedTime: integer("elapsed_time"),
+    distanceMeters: doublePrecision("distance_meters"),
+    trainingLoad: integer("training_load"),
+    intensity: doublePrecision("intensity"),
+    averageHr: doublePrecision("average_hr"),
+    maxHr: doublePrecision("max_hr"),
+    averageWatts: doublePrecision("average_watts"),
+    weightedAverageWatts: doublePrecision("weighted_average_watts"),
+    source: text("source"),
+    rawJson: jsonb("raw_json").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (t) => ({
+    localDayIdx: index("intervals_activities_local_day_idx").on(t.localDay),
+    pairedEventIdx: index("intervals_activities_paired_event_idx").on(t.pairedEventId),
+  }),
+);
+
 export const subjectiveCheckins = pgTable("subjective_checkins", {
   date: text("date").primaryKey(),
   energy: integer("energy"),
@@ -283,6 +312,7 @@ export type SleepRecord = typeof sleepRecords.$inferSelect;
 export type Activity = typeof activities.$inferSelect;
 export type StravaActivity = typeof stravaActivities.$inferSelect;
 export type PlannedSession = typeof plannedSessions.$inferSelect;
+export type IntervalsActivity = typeof intervalsActivities.$inferSelect;
 export type SubjectiveCheckin = typeof subjectiveCheckins.$inferSelect;
 export type ActiveIssue = typeof activeIssues.$inferSelect;
 export type IssueCheckin = typeof issueCheckins.$inferSelect;
