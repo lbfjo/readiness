@@ -20,7 +20,7 @@ from typing import Any, Protocol
 from .repos import AiInsightsRepo
 
 PROMPT_ROOT = Path(__file__).resolve().parents[1] / "prompts"
-DEFAULT_PROMPT = "daily_insight_v1"
+DEFAULT_PROMPT = "daily_insight_v2"
 
 
 @dataclass(frozen=True)
@@ -151,6 +151,7 @@ def generate_daily_insight(
     repo: AiInsightsRepo,
     prompt_version: str = "daily_insight_v1",
     completed_today: list[dict[str, Any]] | None = None,
+    daily_decision: dict[str, Any] | None = None,
 ) -> InsightResult:
     system_prompt = load_prompt(prompt_version)
     context = {
@@ -160,6 +161,7 @@ def generate_daily_insight(
         "planned_session": planned_session,
         "last_checkin": last_checkin,
         "completed_today": completed_today or [],
+        "daily_decision": daily_decision,
     }
 
     payload = backend.run(system_prompt, context)
