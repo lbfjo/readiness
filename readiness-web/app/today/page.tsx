@@ -597,7 +597,16 @@ function TodayPlanned({
   planned: PlannedSession[];
   completed: StravaActivity[];
 }) {
-  if (planned.length === 0) {
+  // Defensive filter: only show real workouts (category=WORKOUT).
+  // TARGET (weekly volume goals) and NOTE (calendar labels) are noise.
+  const workouts = planned.filter((s) => {
+    const raw = typeof s.rawJson === "string"
+      ? (() => { try { return JSON.parse(s.rawJson); } catch { return {}; } })()
+      : (s.rawJson ?? {});
+    return (raw as Record<string, unknown>).category === "WORKOUT";
+  });
+
+  if (workouts.length === 0) {
     return (
       <section>
         <SectionTitle
@@ -618,7 +627,7 @@ function TodayPlanned({
     );
   }
 
-  const sorted = planned
+  const sorted = workouts
     .slice()
     .sort((a, b) => {
       const ta = a.startDateLocal ? new Date(a.startDateLocal).getTime() : 0;

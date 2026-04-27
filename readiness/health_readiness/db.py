@@ -275,6 +275,11 @@ def upsert_strava_activities(conn: sqlite3.Connection, records: list[dict[str, A
 def upsert_planned_sessions(conn: sqlite3.Connection, records: list[dict[str, Any]]) -> int:
     from health_readiness.intervals_client import local_day
 
+    # Only persist real workouts — skip TARGET (weekly volume placeholders)
+    # and NOTE (calendar labels). The "category" field from the Intervals.icu
+    # API is the authoritative discriminator.
+    records = [r for r in records if r.get("category") == "WORKOUT"]
+
     ts = now_iso()
     rows = []
     for item in records:
