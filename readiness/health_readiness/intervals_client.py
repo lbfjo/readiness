@@ -69,6 +69,11 @@ def fetch_events(start: date, end: date) -> list[dict[str, Any]]:
     return body if isinstance(body, list) else []
 
 
+def fetch_activities(start: date, end: date) -> list[dict[str, Any]]:
+    body = _request_json("activities", {"oldest": ymd(start), "newest": ymd(end)})
+    return body if isinstance(body, list) else []
+
+
 def fetch_events_for_weeks(weeks: int) -> list[dict[str, Any]]:
     today = date.today()
     end = today + timedelta(weeks=max(1, weeks))

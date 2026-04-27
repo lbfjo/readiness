@@ -139,6 +139,32 @@ planned_sessions = Table(
     Index("planned_sessions_date_idx", "date"),
 )
 
+intervals_activities = Table(
+    "intervals_activities",
+    metadata,
+    Column("activity_id", Text, primary_key=True),
+    Column("local_day", Text),
+    Column("paired_event_id", Text),
+    Column("name", Text),
+    Column("type", Text),
+    Column("start_date", DateTime(timezone=True)),
+    Column("start_date_local", DateTime(timezone=False)),
+    Column("moving_time", Integer),
+    Column("elapsed_time", Integer),
+    Column("distance_meters", Float),
+    Column("training_load", Integer),
+    Column("intensity", Float),
+    Column("average_hr", Float),
+    Column("max_hr", Float),
+    Column("average_watts", Float),
+    Column("weighted_average_watts", Float),
+    Column("source", Text),
+    Column("raw_json", _json(), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    Index("intervals_activities_local_day_idx", "local_day"),
+    Index("intervals_activities_paired_event_idx", "paired_event_id"),
+)
+
 subjective_checkins = Table(
     "subjective_checkins",
     metadata,
@@ -233,6 +259,7 @@ ALL_TABLES = (
     activities,
     strava_activities,
     planned_sessions,
+    intervals_activities,
     subjective_checkins,
     readiness_scores,
     sync_runs,

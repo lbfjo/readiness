@@ -320,7 +320,7 @@ def command_strava_sync(conn, weeks: int) -> None:
 def command_intervals_sync(conn, weeks: int) -> None:
     from datetime import timedelta
 
-    from health_readiness.intervals_client import fetch_events, fetch_wellness
+    from health_readiness.intervals_client import fetch_activities, fetch_events, fetch_wellness
 
     today = date.today()
     start = today - timedelta(weeks=max(1, weeks))
@@ -335,6 +335,8 @@ def command_intervals_sync(conn, weeks: int) -> None:
     try:
         wellness = fetch_wellness(start, today)
         wellness_counts = db.upsert_intervals_wellness(conn, wellness)
+        activities = fetch_activities(start, today)
+        activity_count = db.upsert_intervals_activities(conn, activities)
         events = fetch_events(today, end)
         planned_count = db.upsert_planned_sessions(conn, events)
         db.finish_sync_run(
@@ -343,7 +345,7 @@ def command_intervals_sync(conn, weeks: int) -> None:
             "success",
             daily_count=wellness_counts["daily"],
             sleep_count=wellness_counts["sleep"],
-            activity_count=planned_count,
+            activity_count=activity_count,
         )
     except Exception as exc:
         db.finish_sync_run(conn, sync_id, "failed", error=str(exc))
@@ -353,9 +355,10 @@ def command_intervals_sync(conn, weeks: int) -> None:
         "Synced Intervals: "
         f"{wellness_counts['daily']} wellness rows, "
         f"{wellness_counts['sleep']} sleep rows, "
+        f"{activity_count} activities, "
         f"{planned_count} planned sessions."
     )
-    _mirror(conn, tables=["daily_metrics", "sleep_records", "planned_sessions", "sync_runs"])
+    _mirror(conn, tables=["daily_metrics", "sleep_records", "intervals_activities", "planned_sessions", "sync_runs"])
 
 
 def command_intervals_import(conn, path: Path) -> None:

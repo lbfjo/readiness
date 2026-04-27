@@ -32,6 +32,7 @@ DEFAULT_TABLES: tuple[str, ...] = (
     "activities",
     "strava_activities",
     "planned_sessions",
+    "intervals_activities",
     "subjective_checkins",
     "readiness_scores",
     "sync_runs",
