@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
-import { buildDailyDecision } from "@/lib/decision-support/engine";
+import { getPersistedDecision } from "@/lib/contracts/daily-decision";
 import { getActiveIssue, getIssueCheckin } from "@/lib/contracts/issue";
 import {
   aiInsights,
@@ -39,13 +39,7 @@ export async function getTodaySummary(date: string): Promise<TodaySummary> {
 
   const freshness = await loadFreshness();
   const issueCheckin = activeIssue ? await safeGetIssueCheckin(activeIssue.id, date) : null;
-  const decision = buildDailyDecision({
-    issue: activeIssue,
-    issueCheckin,
-    planned,
-    score: score[0] ?? null,
-    checkin: checkin[0] ?? null,
-  });
+  const decision = await safeGetPersistedDecision(date);
 
   return {
     date,
@@ -65,6 +59,14 @@ export async function getTodaySummary(date: string): Promise<TodaySummary> {
 async function safeGetActiveIssue() {
   try {
     return await getActiveIssue();
+  } catch {
+    return null;
+  }
+}
+
+async function safeGetPersistedDecision(date: string) {
+  try {
+    return await getPersistedDecision(date);
   } catch {
     return null;
   }

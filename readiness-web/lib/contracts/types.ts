@@ -74,12 +74,30 @@ export type CheckinPayload = {
 export type DailyInsight = AiInsight;
 
 export type DailyDecision = {
+  rulesVersion: string;
   issueArea: string;
   issueLabel: string;
   readinessBand: "green" | "yellow" | "red";
   tissueBand: "green" | "yellow" | "red";
   decision: "go_as_planned" | "reduce_load" | "swap_session" | "rehab_only";
   priority: "protect_tissue" | "maintain_consistency" | "progress_training";
+  primaryGoal:
+    | "build_fitness"
+    | "build_strength"
+    | "build_skill"
+    | "restore_movement"
+    | "reduce_pain"
+    | "recover";
+  limiter:
+    | "none"
+    | "cardio_fatigue"
+    | "muscle_fatigue"
+    | "tendon_pain"
+    | "stiffness"
+    | "poor_sleep"
+    | "high_stress"
+    | "time_availability";
+  session: SessionClassification;
   title: string;
   summary: string;
   reasonCodes: string[];
@@ -96,4 +114,28 @@ export type DailyDecision = {
     avoid: string[];
   } | null;
   redFlags: string[];
+};
+
+export type SessionClassification = {
+  sessionType:
+    | "key_workout"
+    | "support_workout"
+    | "rehab"
+    | "recovery"
+    | "mobility"
+    | "skill"
+    | "none";
+  goal:
+    | "build_fitness"
+    | "build_strength"
+    | "build_skill"
+    | "restore_movement"
+    | "reduce_pain"
+    | "recover";
+  cost: "none" | "low" | "medium" | "high";
+  recoveryDemand: "none" | "low" | "medium" | "high";
+  injuryRisk: "none" | "low" | "medium" | "high";
+  tissueTags: string[];
+  reasonCodes: string[];
+  label: string;
 };
