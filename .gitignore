@@ -52,3 +52,6 @@ readiness/scripts/com.readiness.*.plist
 .vercel/
 *.pem
 
+
+# Atomica Code
+/.atomica

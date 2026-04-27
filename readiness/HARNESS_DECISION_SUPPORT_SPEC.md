@@ -100,6 +100,116 @@ Three user-facing jobs:
 5. **Every recommendation should be inspectable**
    - store reason codes so the UI can say why a decision happened.
 
+6. **Global harness, injury-specific modules**
+   - the physio harness supplies shared decision principles, but each injury
+     area owns its own deterministic tissue rules, risk tags, and rehab blocks.
+
+7. **Prompts are guardrails, not decision engines**
+   - AI prompts may include the physio harness so the explanation stays aligned,
+     but the prompt must treat the stored deterministic decision as authoritative.
+
+---
+
+## Decision Architecture
+
+The decision system must stay modular so new injuries can be added without
+rewriting the whole planner or relying on free-form AI judgment.
+
+Recommended shape:
+
+```text
+Global Harness Principles
+  -> session classifier
+  -> injury-specific module
+  -> deterministic daily decision
+  -> AI narrative layer
+```
+
+### Global Harness Principles
+
+These rules apply to every injury area:
+
+- pain is not fatigue
+- rehab is part of training load, not an optional extra
+- protect tissue before maintaining consistency
+- maintain consistency before progressing training
+- progress training before adding extras
+- do not stack hard workout progression, aggressive rehab, poor sleep, high stress, and unresolved pain
+- limp, compensation, or pain worsening during warm-up are red signals
+- structured inputs and reason codes beat free-text interpretation
+
+These principles should be present in AI explanation prompts as behavioral
+guardrails, but they should also exist as deterministic rules in the code.
+
+### Injury Modules
+
+Each injury area should be implemented as a module behind a shared interface.
+The module handles tissue interpretation and injury-specific risk, while the
+global harness engine handles priority and final decision composition.
+
+Conceptual interface:
+
+```ts
+type InjuryModule = {
+  area: "achilles" | "patellar_tendon" | "hamstring" | "calf" | "back";
+  classifyTissue(checkin: IssueCheckin | null): TissueBand;
+  classifySessionRisk(session: SessionClassification): InjuryRisk;
+  buildRehabPrescription(issue: ActiveIssue, band: TissueBand): RehabPrescription;
+  redFlags(checkin: IssueCheckin | null): string[];
+  reasonCodes(input: ModuleInput): string[];
+};
+```
+
+### Injury-Specific Responsibility
+
+The generic harness must not pretend that all injuries behave the same.
+Examples:
+
+- Achilles:
+  - first-step pain, morning stiffness, hills, trail running, and impact matter
+  - insertional Achilles should avoid aggressive dorsiflexion and heel drops off a step during calming phases
+- Patellar tendon / knee:
+  - stairs, squats, jumping, downhill running, and knee-flexion loading matter
+- Hamstring:
+  - sprinting, strides, hills, deadlifts, and lengthened loading matter
+- Back:
+  - neurological symptoms and radiating pain need special red-flag handling before any training recommendation
+
+New injury modules must start conservative, ship with tests, and return a
+deterministic decision even when AI is disabled.
+
+### AI Prompt Use
+
+AI may use the physio harness in every narrative prompt only if the prompt
+keeps this boundary:
+
+```text
+The deterministic decision is authoritative. Use the physio harness principles
+to explain the decision. Do not change the decision, diagnose, or prescribe
+outside the provided rehab block.
+```
+
+AI input should include:
+
+- readiness score and drivers
+- persisted daily decision
+- reason codes
+- session classification
+- active issue metadata
+- issue check-in
+- provided rehab block
+
+AI output should include only narrative fields:
+
+- summary
+- decision explanation
+- talking points
+- session advice
+- watchouts
+
+AI output must not include a replacement score, replacement decision, diagnosis,
+or new rehab prescription.
+
 ---
 
 ## Current System Mapping

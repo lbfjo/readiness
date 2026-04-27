@@ -12,11 +12,13 @@ from health_readiness import db
 from health_readiness.insight import CodexInsightBackend, generate_daily_insight
 from health_readiness.insight_context import (
     build_completed_today,
+    build_daily_decision,
     build_last_checkin,
     build_planned_session,
     build_today_summary,
     build_trend,
 )
+from health_readiness.daily_inputs import build_daily_inputs, scoring_rows_from_inputs
 from health_readiness.repos import make_repos
 from health_readiness.scoring import decode_json_list, score_rows
 
@@ -214,7 +216,8 @@ def command_sync(conn, weeks: int) -> None:
 
 def command_score(conn) -> None:
     _pull_web_checkins(conn)
-    scores = score_rows(db.load_scoring_rows(conn))
+    daily_inputs = build_daily_inputs(db.load_scoring_rows(conn))
+    scores = score_rows(scoring_rows_from_inputs(daily_inputs))
     count = db.save_readiness_scores(conn, scores)
     print(f"Computed {count} readiness scores.")
     _mirror(conn, tables=["subjective_checkins", "readiness_scores"])
@@ -426,10 +429,12 @@ def command_insight(conn, target_date: str | None, model: str | None, dry_run: b
     planned = build_planned_session(conn, row["date"])
     last_checkin = build_last_checkin(conn, row["date"])
     completed_today = build_completed_today(conn, row["date"])
+    daily_decision = build_daily_decision(row["date"])
 
     context = {
         "date": row["date"],
         "today_summary": today_summary,
+        "daily_decision": daily_decision,
         "trend": trend,
         "planned_session": planned,
         "last_checkin": last_checkin,
@@ -451,6 +456,7 @@ def command_insight(conn, target_date: str | None, model: str | None, dry_run: b
         planned_session=planned,
         last_checkin=last_checkin,
         completed_today=completed_today,
+        daily_decision=daily_decision,
         repo=repos.ai_insights,
     )
 
