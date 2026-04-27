@@ -1,13 +1,13 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
-import { buildDailyDecision } from "@/lib/decision-support/engine";
+import { getPersistedDecision } from "@/lib/contracts/daily-decision";
 import { getActiveIssue, getIssueCheckin } from "@/lib/contracts/issue";
 import {
   aiInsights,
+  intervalsActivities,
   plannedSessions,
   readinessScores,
   sleepRecords,
-  stravaActivities,
   subjectiveCheckins,
   syncRuns,
 } from "@/lib/db/schema";
@@ -21,12 +21,12 @@ import type { SourceFreshness, TodaySummary } from "./types";
 export async function getTodaySummary(date: string): Promise<TodaySummary> {
   const db = getDb();
 
-  const [score, sleep, checkin, planned, strava, activeIssue] = await Promise.all([
+  const [score, sleep, checkin, planned, intervalsToday, activeIssue] = await Promise.all([
     db.select().from(readinessScores).where(eq(readinessScores.date, date)).limit(1),
     db.select().from(sleepRecords).where(eq(sleepRecords.date, date)).limit(1),
     db.select().from(subjectiveCheckins).where(eq(subjectiveCheckins.date, date)).limit(1),
     db.select().from(plannedSessions).where(eq(plannedSessions.date, date)),
-    db.select().from(stravaActivities).where(eq(stravaActivities.localDay, date)),
+    db.select().from(intervalsActivities).where(eq(intervalsActivities.localDay, date)),
     safeGetActiveIssue(),
   ]);
 
@@ -39,13 +39,7 @@ export async function getTodaySummary(date: string): Promise<TodaySummary> {
 
   const freshness = await loadFreshness();
   const issueCheckin = activeIssue ? await safeGetIssueCheckin(activeIssue.id, date) : null;
-  const decision = buildDailyDecision({
-    issue: activeIssue,
-    issueCheckin,
-    planned,
-    score: score[0] ?? null,
-    checkin: checkin[0] ?? null,
-  });
+  const decision = await safeGetPersistedDecision(date);
 
   return {
     date,
@@ -55,7 +49,7 @@ export async function getTodaySummary(date: string): Promise<TodaySummary> {
     activeIssue,
     issueCheckin,
     plannedSessions: planned,
-    stravaToday: strava,
+    intervalsToday,
     freshness,
     insight: insight[0] ?? null,
     decision,
@@ -65,6 +59,14 @@ export async function getTodaySummary(date: string): Promise<TodaySummary> {
 async function safeGetActiveIssue() {
   try {
     return await getActiveIssue();
+  } catch {
+    return null;
+  }
+}
+
+async function safeGetPersistedDecision(date: string) {
+  try {
+    return await getPersistedDecision(date);
   } catch {
     return null;
   }

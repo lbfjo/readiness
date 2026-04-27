@@ -41,6 +41,9 @@ readiness/data/readiness.sqlite
 10. `planned-today` shows the planned sessions for a day.
 
 The scoring model is intentionally transparent and stored with component scores and driver text so the dashboard can explain each recommendation.
+Before scoring, provider-specific storage rows are normalized into a small
+daily input contract. That keeps Coros, Intervals.icu, and future sources out
+of the scoring rules themselves.
 
 ## Readiness Model
 

@@ -91,6 +91,28 @@ CREATE TABLE IF NOT EXISTS planned_sessions (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS intervals_activities (
+  activity_id TEXT PRIMARY KEY,
+  local_day TEXT,
+  paired_event_id TEXT,
+  name TEXT,
+  type TEXT,
+  start_date TEXT,
+  start_date_local TEXT,
+  moving_time INTEGER,
+  elapsed_time INTEGER,
+  distance_meters REAL,
+  training_load INTEGER,
+  intensity REAL,
+  average_hr REAL,
+  max_hr REAL,
+  average_watts REAL,
+  weighted_average_watts REAL,
+  source TEXT,
+  raw_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS subjective_checkins (
   date TEXT PRIMARY KEY,
   energy INTEGER,

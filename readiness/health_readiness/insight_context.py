@@ -8,10 +8,12 @@ round-trip through Postgres just to assemble the prompt. The shape matches
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from typing import Any
 
 from . import db
+from .mirror import _promote_url
 
 
 def _decode(value: Any) -> Any:
@@ -155,3 +157,23 @@ def build_completed_today(
             }
         )
     return items
+
+
+def build_daily_decision(date: str) -> dict[str, Any] | None:
+    """Read the persisted harness decision from Postgres when available."""
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        return None
+    try:
+        from sqlalchemy import create_engine, text
+
+        engine = create_engine(_promote_url(url), future=True)
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT raw_json FROM daily_decisions WHERE date = :date"),
+                {"date": date},
+            ).first()
+        raw = row[0] if row else None
+        return raw if isinstance(raw, dict) else None
+    except Exception:
+        return None

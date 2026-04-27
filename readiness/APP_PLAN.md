@@ -439,6 +439,17 @@ Build trust in the data.
 
 Make the app actionable, not just descriptive.
 
+### Architecture Guardrail
+
+Plan-vs-readiness decisions must follow the Harness Decision Support
+architecture:
+
+- global physio harness principles apply to every injury
+- actual decisions come from deterministic rules, not AI
+- injury-specific modules own tissue-band logic, session risk, red flags, and rehab blocks
+- AI may explain the stored decision but must not override it
+- every decision stores reason codes so the UI can show why it happened
+
 ### Deliverables
 
 - Simple session intensity heuristic from `planned_sessions.type`, `name`, and `description`
@@ -448,6 +459,9 @@ Make the app actionable, not just descriptive.
   - Recovery / Z1/Z2 markers => `easy`
   - Everything else => `moderate`
 - Compare classified intensity against today readiness status
+- Compare classified session risk against the active injury module, starting with Achilles
+- Apply the "one hard goal at a time" rule when hard training, aggressive rehab, poor sleep, high stress, or unresolved pain stack together
+- Include primary goal, limiter, and priority in the daily decision output
 - Classify outcome:
   - `Train as planned`
   - `Proceed with caution`
@@ -459,6 +473,7 @@ Make the app actionable, not just descriptive.
 - Today view can tell you whether the planned session fits your current state
 - Logic stays simple and explainable
 - Heuristic lives in one pure function with unit tests
+- Adding a new injury area means adding a new module and tests, not rewriting the global decision engine
 
 ## Milestone 7: Notifications
 
@@ -494,10 +509,13 @@ Add a narrative layer on top of the deterministic score so the Today screen can 
 ### Principles
 
 - Deterministic scoring is the source of truth
+- Deterministic harness decisions are authoritative for plan modification
 - AI explains, contextualizes, and comments on planned session fit
 - AI never overrides score, status, or recommendation
+- AI never overrides the daily decision, reason codes, red flags, or rehab prescription
 - Output is cached; the app never calls the LLM at request time
 - AI failures degrade silently to the existing rule-based drivers
+- AI prompts may include the physio harness as a guardrail, but only to explain the already-computed decision
 
 ### Schema addition
 

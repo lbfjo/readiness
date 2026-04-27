@@ -14,6 +14,9 @@ export const JOB_KINDS = [
   "sync",
   "intervals_sync",
   "score",
+  "decision",
+  "score_insight",
+  "score_decision_insight",
   "insight",
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];

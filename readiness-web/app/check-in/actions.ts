@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { upsertCheckin } from "@/lib/contracts/checkin";
+import { enqueueJob } from "@/lib/contracts/jobs";
 import { upsertIssueCheckin } from "@/lib/contracts/issue";
 import { todayIsoDate } from "@/lib/time";
 
@@ -153,12 +154,25 @@ export async function saveCheckin(
       });
     }
 
+    let queued = true;
+    try {
+      await enqueueJob({
+        kind: "score_decision_insight",
+        payload: { date: parsed.data.date },
+        requestedBy: "check-in",
+      });
+    } catch {
+      queued = false;
+    }
+
     revalidatePath("/check-in");
     revalidatePath("/today");
 
     return {
       status: "success",
-      message: "Check-in saved. Next score refresh will pick it up.",
+      message: queued
+        ? "Check-in saved. Score refresh queued."
+        : "Check-in saved. Refresh could not be queued.",
       date: row.date,
     };
   } catch (err) {

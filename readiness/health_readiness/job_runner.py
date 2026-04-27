@@ -12,9 +12,11 @@ and keeps the job contract narrow.
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import traceback
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable
 
 from sqlalchemy import MetaData, create_engine, text
@@ -24,6 +26,8 @@ from .mirror import _promote_url
 
 JobPayload = dict[str, Any]
 Dispatcher = Callable[[Any, JobPayload], None]
+ROOT = Path(__file__).resolve().parents[2]
+WEB_ROOT = ROOT / "readiness-web"
 
 
 def _engine(url: str | None = None):
@@ -88,6 +92,27 @@ def finish_job(
         )
 
 
+def heartbeat(status: str = "alive", url: str | None = None) -> None:
+    if not os.environ.get("DATABASE_URL") and url is None:
+        return
+    engine = _engine(url)
+    sql = text(
+        """
+        INSERT INTO settings (key, value, updated_at)
+        VALUES ('worker_heartbeat', CAST(:value AS jsonb), now())
+        ON CONFLICT (key) DO UPDATE
+        SET value = EXCLUDED.value,
+            updated_at = EXCLUDED.updated_at
+        """
+    )
+    value = (
+        '{"status":"%s","pid":%d,"updated_at":"%s"}'
+        % (status, os.getpid(), datetime.now(tz=timezone.utc).isoformat())
+    )
+    with engine.begin() as conn:
+        conn.execute(sql, {"value": value})
+
+
 def _dispatch_sync(conn, payload: JobPayload) -> None:
     # Import lazily to avoid pulling Coros/Strava deps for `insight`/`score`
     # jobs, matching the convention in cli.py.
@@ -124,6 +149,34 @@ def _dispatch_insight(conn, payload: JobPayload) -> None:
     )
 
 
+def _dispatch_score_insight(conn, payload: JobPayload) -> None:
+    _dispatch_score(conn, payload)
+    _dispatch_decision(conn, payload)
+    _dispatch_insight(conn, payload)
+
+
+def _dispatch_decision(_conn, payload: JobPayload) -> None:
+    target_date = payload.get("date")
+    cmd = ["./node_modules/.bin/tsx", "scripts/compute-decision.ts"]
+    if target_date:
+        cmd.append(f"--date={target_date}")
+    proc = subprocess.run(
+        cmd,
+        cwd=WEB_ROOT,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"decision compute failed ({proc.returncode}): "
+            f"{proc.stderr.strip()[:800] or proc.stdout.strip()[:800]}"
+        )
+    print(proc.stdout.strip())
+
+
 def _dispatch_refresh(conn, payload: JobPayload) -> None:
     """Full mid-day refresh: sync + score (picks up web check-ins) + insight.
 
@@ -133,14 +186,39 @@ def _dispatch_refresh(conn, payload: JobPayload) -> None:
     """
     _dispatch_sync(conn, payload)
     _dispatch_score(conn, payload)
+    _dispatch_decision(conn, payload)
+    _dispatch_insight(conn, payload)
+
+
+def _dispatch_intervals_sync(conn, payload: JobPayload) -> None:
+    from cli import command_intervals_sync  # noqa: E402
+
+    weeks = int(payload.get("weeks", 4))
+    command_intervals_sync(conn, weeks)
+
+
+def _dispatch_intervals_refresh(conn, payload: JobPayload) -> None:
+    """Hosted-friendly refresh path: Intervals -> score -> insight.
+
+    This avoids Coros/Strava dependencies for the web button while still
+    producing the data the Today page needs.
+    """
+    _dispatch_intervals_sync(conn, payload)
+    _dispatch_score(conn, payload)
+    _dispatch_decision(conn, payload)
     _dispatch_insight(conn, payload)
 
 
 JOB_DISPATCH: dict[str, Dispatcher] = {
     "sync": _dispatch_sync,
+    "intervals_sync": _dispatch_intervals_sync,
     "score": _dispatch_score,
+    "decision": _dispatch_decision,
+    "score_insight": _dispatch_score_insight,
+    "score_decision_insight": _dispatch_score_insight,
     "insight": _dispatch_insight,
     "refresh": _dispatch_refresh,
+    "intervals_refresh": _dispatch_intervals_refresh,
 }
 
 
@@ -148,6 +226,11 @@ def run_once(conn) -> bool:
     """Claim and dispatch a single job. Returns `True` if one was processed."""
     if not os.environ.get("DATABASE_URL"):
         return False
+
+    try:
+        heartbeat()
+    except Exception as exc:  # noqa: BLE001 - best-effort heartbeat
+        print(f"poll: heartbeat failed ({exc})", file=sys.stderr)
 
     try:
         job = claim_pending_job()

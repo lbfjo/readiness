@@ -275,6 +275,11 @@ def upsert_strava_activities(conn: sqlite3.Connection, records: list[dict[str, A
 def upsert_planned_sessions(conn: sqlite3.Connection, records: list[dict[str, Any]]) -> int:
     from health_readiness.intervals_client import local_day
 
+    # Only persist real workouts — skip TARGET (weekly volume placeholders)
+    # and NOTE (calendar labels). The "category" field from the Intervals.icu
+    # API is the authoritative discriminator.
+    records = [r for r in records if r.get("category") == "WORKOUT"]
+
     ts = now_iso()
     rows = []
     for item in records:
@@ -336,6 +341,74 @@ def _as_float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def upsert_intervals_activities(conn: sqlite3.Connection, records: list[dict[str, Any]]) -> int:
+    from health_readiness.intervals_client import local_day
+
+    ts = now_iso()
+    rows = []
+    for item in records:
+        activity_id = item.get("id")
+        if not activity_id:
+            continue
+        start_date_local = item.get("start_date_local") or item.get("start_date")
+        paired_event_id = item.get("paired_event_id")
+        rows.append((
+            str(activity_id),
+            local_day(start_date_local),
+            str(paired_event_id) if paired_event_id is not None else None,
+            item.get("name"),
+            item.get("type"),
+            item.get("start_date"),
+            start_date_local,
+            _as_int(item.get("moving_time")),
+            _as_int(item.get("elapsed_time")),
+            _as_float(item.get("icu_distance") if item.get("icu_distance") is not None else item.get("distance")),
+            _as_int(item.get("icu_training_load")),
+            _as_float(item.get("icu_intensity")),
+            _as_float(item.get("average_heartrate")),
+            _as_float(item.get("max_heartrate")),
+            _as_float(item.get("icu_average_watts") if item.get("icu_average_watts") is not None else item.get("average_watts")),
+            _as_float(item.get("icu_weighted_avg_watts") if item.get("icu_weighted_avg_watts") is not None else item.get("weighted_average_watts")),
+            item.get("source"),
+            json_dumps(item),
+            ts,
+        ))
+
+    conn.executemany(
+        """
+        INSERT INTO intervals_activities (
+          activity_id, local_day, paired_event_id, name, type, start_date,
+          start_date_local, moving_time, elapsed_time, distance_meters,
+          training_load, intensity, average_hr, max_hr, average_watts,
+          weighted_average_watts, source, raw_json, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(activity_id) DO UPDATE SET
+          local_day = excluded.local_day,
+          paired_event_id = excluded.paired_event_id,
+          name = excluded.name,
+          type = excluded.type,
+          start_date = excluded.start_date,
+          start_date_local = excluded.start_date_local,
+          moving_time = excluded.moving_time,
+          elapsed_time = excluded.elapsed_time,
+          distance_meters = excluded.distance_meters,
+          training_load = excluded.training_load,
+          intensity = excluded.intensity,
+          average_hr = excluded.average_hr,
+          max_hr = excluded.max_hr,
+          average_watts = excluded.average_watts,
+          weighted_average_watts = excluded.weighted_average_watts,
+          source = excluded.source,
+          raw_json = excluded.raw_json,
+          updated_at = excluded.updated_at
+        """,
+        rows,
+    )
+    conn.commit()
+    return len(rows)
 
 
 def _intervals_load_ratio(atl: Any, ctl: Any) -> float | None:

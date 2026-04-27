@@ -120,6 +120,35 @@ export const plannedSessions = pgTable(
   }),
 );
 
+export const intervalsActivities = pgTable(
+  "intervals_activities",
+  {
+    activityId: text("activity_id").primaryKey(),
+    localDay: text("local_day"),
+    pairedEventId: text("paired_event_id"),
+    name: text("name"),
+    type: text("type"),
+    startDate: timestamp("start_date", { withTimezone: true }),
+    startDateLocal: timestamp("start_date_local", { withTimezone: false }),
+    movingTime: integer("moving_time"),
+    elapsedTime: integer("elapsed_time"),
+    distanceMeters: doublePrecision("distance_meters"),
+    trainingLoad: integer("training_load"),
+    intensity: doublePrecision("intensity"),
+    averageHr: doublePrecision("average_hr"),
+    maxHr: doublePrecision("max_hr"),
+    averageWatts: doublePrecision("average_watts"),
+    weightedAverageWatts: doublePrecision("weighted_average_watts"),
+    source: text("source"),
+    rawJson: jsonb("raw_json").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (t) => ({
+    localDayIdx: index("intervals_activities_local_day_idx").on(t.localDay),
+    pairedEventIdx: index("intervals_activities_paired_event_idx").on(t.pairedEventId),
+  }),
+);
+
 export const subjectiveCheckins = pgTable("subjective_checkins", {
   date: text("date").primaryKey(),
   energy: integer("energy"),
@@ -195,6 +224,24 @@ export const readinessScores = pgTable("readiness_scores", {
   computedAt: timestamp("computed_at", { withTimezone: true }).notNull(),
 });
 
+export const dailyDecisions = pgTable("daily_decisions", {
+  date: text("date").primaryKey(),
+  rulesVersion: text("rules_version").notNull(),
+  readinessBand: text("readiness_band"),
+  tissueBand: text("tissue_band"),
+  primaryGoal: text("primary_goal"),
+  limiter: text("limiter"),
+  priority: text("priority").notNull(),
+  decision: text("decision").notNull(),
+  reasonCodesJson: jsonb("reason_codes_json").notNull(),
+  recommendedModificationJson: jsonb("recommended_modification_json"),
+  rehabPrescriptionJson: jsonb("rehab_prescription_json"),
+  redFlagsJson: jsonb("red_flags_json"),
+  rawJson: jsonb("raw_json").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});
+
 export const syncRuns = pgTable("sync_runs", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   source: text("source").notNull(),
@@ -265,10 +312,12 @@ export type SleepRecord = typeof sleepRecords.$inferSelect;
 export type Activity = typeof activities.$inferSelect;
 export type StravaActivity = typeof stravaActivities.$inferSelect;
 export type PlannedSession = typeof plannedSessions.$inferSelect;
+export type IntervalsActivity = typeof intervalsActivities.$inferSelect;
 export type SubjectiveCheckin = typeof subjectiveCheckins.$inferSelect;
 export type ActiveIssue = typeof activeIssues.$inferSelect;
 export type IssueCheckin = typeof issueCheckins.$inferSelect;
 export type ReadinessScore = typeof readinessScores.$inferSelect;
+export type DailyDecisionRow = typeof dailyDecisions.$inferSelect;
 export type SyncRun = typeof syncRuns.$inferSelect;
 export type AiInsight = typeof aiInsights.$inferSelect;
 export type Setting = typeof settings.$inferSelect;
