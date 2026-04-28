@@ -13,15 +13,15 @@ import {
   Waves,
   Wind,
 } from "lucide-react";
-import type { IntervalsActivity, JobQueueRow, PlannedSession } from "@/lib/db/schema";
-import { getLatestJob } from "@/lib/contracts/jobs";
+import type { PlannedSession } from "@/lib/db/schema";
+import { getLatestJob, type JobStatusRow } from "@/lib/contracts/jobs";
 import { RefreshButton } from "./refresh-button";
 import { EmptyState } from "@/components/empty-state";
 import { Panel, SectionTitle } from "@/components/section";
 import { ReadinessRing } from "@/components/readiness-ring";
 import { DriverTile, type DriverTone } from "@/components/driver-tile";
 import { getTodaySummary } from "@/lib/contracts/today";
-import type { TodaySummary } from "@/lib/contracts/types";
+import type { TodayIntervalsActivity, TodaySummary } from "@/lib/contracts/types";
 import { appTimezone, formatRelative, todayIsoDate } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +41,7 @@ async function loadSummary(): Promise<
   }
 }
 
-async function safeGetLatestRefreshJob(): Promise<JobQueueRow | null> {
+async function safeGetLatestRefreshJob(): Promise<JobStatusRow | null> {
   if (!process.env.DATABASE_URL) return null;
   try {
     return await getLatestJob(["intervals_refresh"]);
@@ -210,7 +210,7 @@ function Shell({
   date: string;
   tz: string;
   freshness?: TodaySummary["freshness"];
-  latestRefreshJob: JobQueueRow | null;
+  latestRefreshJob: JobStatusRow | null;
 }) {
   const stalest = freshness?.reduce<string | null>((acc, f) => {
     if (!f.lastSuccessAt) return acc;
@@ -581,8 +581,8 @@ function plannedRaw(session: PlannedSession): PlannedRaw {
 
 function matchedActivity(
   session: PlannedSession,
-  completed: IntervalsActivity[],
-): IntervalsActivity | null {
+  completed: TodayIntervalsActivity[],
+): TodayIntervalsActivity | null {
   const raw = plannedRaw(session);
   const pairedId = raw.paired_activity_id ? String(raw.paired_activity_id) : null;
   if (pairedId) {
@@ -596,7 +596,7 @@ function TodayPlanned({
   completed,
 }: {
   planned: PlannedSession[];
-  completed: IntervalsActivity[];
+  completed: TodayIntervalsActivity[];
 }) {
   // Defensive filter: only show real workouts (category=WORKOUT).
   // TARGET (weekly volume goals) and NOTE (calendar labels) are noise.
@@ -673,7 +673,7 @@ function PlannedCard({
   match,
 }: {
   session: PlannedSession;
-  match: IntervalsActivity | null;
+  match: TodayIntervalsActivity | null;
 }) {
   const raw = plannedRaw(session);
   const plannedIcon = iconForSport(session.type);
@@ -878,7 +878,7 @@ function TodayActivities({
   activities,
   planned,
 }: {
-  activities: IntervalsActivity[];
+  activities: TodayIntervalsActivity[];
   planned: PlannedSession[];
 }) {
   if (activities.length === 0) {
@@ -951,7 +951,7 @@ function ActivityCard({
   activity,
   plannedName,
 }: {
-  activity: IntervalsActivity;
+  activity: TodayIntervalsActivity;
   plannedName: string | null;
 }) {
   const activityIcon = iconForSport(activity.type);
@@ -963,6 +963,7 @@ function ActivityCard({
   const time = activity.startDateLocal
     ? formatTimeOfDay(activity.startDateLocal)
     : null;
+  const title = activity.name?.trim() || sportLabel(activity.type) || "Completed workout";
 
   return (
     <Panel className="flex items-start gap-4">
@@ -974,7 +975,7 @@ function ActivityCard({
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-start justify-between gap-2">
             <p className="truncate font-display text-sm font-semibold text-white">
-              {activity.name}
+              {title}
             </p>
             <div className="flex shrink-0 items-center gap-1">
               {time ? (
@@ -1013,11 +1014,25 @@ function ActivityCard({
               </span>
             ) : null}
             {plannedName ? <span>Matched to {plannedName}</span> : null}
-            {activity.source ? <span>{activity.source}</span> : null}
+            {activity.source ? <span>Source {sourceLabel(activity.source)}</span> : null}
           </div>
         </div>
     </Panel>
   );
+}
+
+function sportLabel(sport: string | null): string | null {
+  if (!sport) return null;
+  const spaced = sport
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim();
+  return spaced || null;
+}
+
+function sourceLabel(source: string): string {
+  const normalized = source.replace(/[_-]+/g, " ").toLowerCase();
+  return normalized.replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function iconForSport(sport: string | null): React.ComponentType<{ className?: string }> {

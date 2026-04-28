@@ -21,14 +21,37 @@ import type { SourceFreshness, TodaySummary } from "./types";
 export async function getTodaySummary(date: string): Promise<TodaySummary> {
   const db = getDb();
 
-  const [score, sleep, checkin, planned, intervalsToday, activeIssue] = await Promise.all([
+  const [score, sleep, checkin, planned, intervalsTodayRows, activeIssue] = await Promise.all([
     db.select().from(readinessScores).where(eq(readinessScores.date, date)).limit(1),
     db.select().from(sleepRecords).where(eq(sleepRecords.date, date)).limit(1),
     db.select().from(subjectiveCheckins).where(eq(subjectiveCheckins.date, date)).limit(1),
     db.select().from(plannedSessions).where(eq(plannedSessions.date, date)),
-    db.select().from(intervalsActivities).where(eq(intervalsActivities.localDay, date)),
+    db
+      .select({
+        activityId: intervalsActivities.activityId,
+        localDay: intervalsActivities.localDay,
+        pairedEventId: intervalsActivities.pairedEventId,
+        name: intervalsActivities.name,
+        type: intervalsActivities.type,
+        startDate: intervalsActivities.startDate,
+        startDateLocal: intervalsActivities.startDateLocal,
+        movingTime: intervalsActivities.movingTime,
+        elapsedTime: intervalsActivities.elapsedTime,
+        distanceMeters: intervalsActivities.distanceMeters,
+        trainingLoad: intervalsActivities.trainingLoad,
+        intensity: intervalsActivities.intensity,
+        averageHr: intervalsActivities.averageHr,
+        maxHr: intervalsActivities.maxHr,
+        averageWatts: intervalsActivities.averageWatts,
+        weightedAverageWatts: intervalsActivities.weightedAverageWatts,
+        source: intervalsActivities.source,
+      })
+      .from(intervalsActivities)
+      .where(eq(intervalsActivities.localDay, date)),
     safeGetActiveIssue(),
   ]);
+
+  const intervalsToday = intervalsTodayRows.filter(isDisplayableIntervalsActivity);
 
   const insight = await db
     .select()
@@ -54,6 +77,35 @@ export async function getTodaySummary(date: string): Promise<TodaySummary> {
     insight: insight[0] ?? null,
     decision,
   };
+}
+
+function isDisplayableIntervalsActivity(activity: {
+  name: string | null;
+  type: string | null;
+  movingTime: number | null;
+  elapsedTime: number | null;
+  distanceMeters: number | null;
+  trainingLoad: number | null;
+  averageHr: number | null;
+  source: string | null;
+}) {
+  const hasWorkoutData = Boolean(
+    activity.name ||
+      activity.type ||
+      activity.movingTime ||
+      activity.elapsedTime ||
+      activity.distanceMeters ||
+      activity.trainingLoad ||
+      activity.averageHr,
+  );
+
+  // Intervals can emit placeholder STRAVA rows when detailed Strava activity
+  // data is unavailable. Those are source markers, not completed workouts.
+  if (!hasWorkoutData && activity.source?.toUpperCase() === "STRAVA") {
+    return false;
+  }
+
+  return hasWorkoutData;
 }
 
 async function safeGetActiveIssue() {

@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, CircleAlert, Loader2, RefreshCw } from "lucide-react";
 import type { JobQueueRow } from "@/lib/db/schema";
-import { isTerminalStatus } from "@/lib/contracts/jobs";
+import { isTerminalStatus, type JobStatusRow } from "@/lib/contracts/jobs";
 
 type Props = {
-  initialLatestJob: JobQueueRow | null;
+  initialLatestJob: JobStatusRow | null;
 };
 
 type UiState =
@@ -68,7 +68,7 @@ export function RefreshButton({ initialLatestJob }: Props) {
       if (!res.ok || !body.job) {
         throw new Error(body.error ?? `HTTP ${res.status}`);
       }
-      const job: JobQueueRow = body.job;
+      const job: JobStatusRow = body.job;
       if (isTerminalStatus(job.status)) {
         if (job.status === "succeeded") {
           setState({ kind: "succeeded", at: new Date() });
@@ -146,7 +146,7 @@ function StatusLine({ state }: { state: UiState }) {
   );
 }
 
-function initialUiState(job: JobQueueRow | null): UiState {
+function initialUiState(job: JobStatusRow | null): UiState {
   if (!job) return { kind: "idle" };
   if (job.status === "pending") return { kind: "queued", jobId: job.id };
   if (job.status === "running") return { kind: "running", jobId: job.id };

@@ -33,6 +33,32 @@ export type EnqueueInput = {
   requestedBy?: string;
 };
 
+export type JobStatusRow = {
+  id: number;
+  kind: string;
+  status: string;
+  attempts: number;
+  lastError: string | null;
+  requestedBy: string | null;
+  requestedAt: Date;
+  startedAt: Date | null;
+  finishedAt: Date | null;
+  isTerminal: boolean;
+};
+
+const jobStatusColumns = {
+  id: jobQueue.id,
+  kind: jobQueue.kind,
+  status: jobQueue.status,
+  attempts: jobQueue.attempts,
+  lastError: jobQueue.lastError,
+  requestedBy: jobQueue.requestedBy,
+  requestedAt: jobQueue.requestedAt,
+  startedAt: jobQueue.startedAt,
+  finishedAt: jobQueue.finishedAt,
+  isTerminal: jobQueue.isTerminal,
+};
+
 export async function enqueueJob(input: EnqueueInput): Promise<JobQueueRow> {
   const db = getDb();
   const now = new Date();
@@ -51,9 +77,13 @@ export async function enqueueJob(input: EnqueueInput): Promise<JobQueueRow> {
   return row;
 }
 
-export async function getJob(id: number): Promise<JobQueueRow | null> {
+export async function getJob(id: number): Promise<JobStatusRow | null> {
   const db = getDb();
-  const rows = await db.select().from(jobQueue).where(eq(jobQueue.id, id)).limit(1);
+  const rows = await db
+    .select(jobStatusColumns)
+    .from(jobQueue)
+    .where(eq(jobQueue.id, id))
+    .limit(1);
   return rows[0] ?? null;
 }
 
@@ -63,10 +93,10 @@ export async function getJob(id: number): Promise<JobQueueRow | null> {
  */
 export async function getLatestJob(
   kinds: JobKind[] | null = null,
-): Promise<JobQueueRow | null> {
+): Promise<JobStatusRow | null> {
   const db = getDb();
   const rows = await db
-    .select()
+    .select(jobStatusColumns)
     .from(jobQueue)
     .where(kinds && kinds.length > 0 ? inArray(jobQueue.kind, kinds) : undefined)
     .orderBy(desc(jobQueue.requestedAt))
@@ -74,10 +104,10 @@ export async function getLatestJob(
   return rows[0] ?? null;
 }
 
-export async function getRecentJobs(limit = 12): Promise<JobQueueRow[]> {
+export async function getRecentJobs(limit = 12): Promise<JobStatusRow[]> {
   const db = getDb();
   return db
-    .select()
+    .select(jobStatusColumns)
     .from(jobQueue)
     .orderBy(desc(jobQueue.requestedAt))
     .limit(limit);
@@ -87,10 +117,10 @@ export async function getRecentJobs(limit = 12): Promise<JobQueueRow[]> {
  * List jobs still in flight. The poller's primary query; the web UI uses it
  * as a cheap "is something running?" check.
  */
-export async function listActiveJobs(): Promise<JobQueueRow[]> {
+export async function listActiveJobs(): Promise<JobStatusRow[]> {
   const db = getDb();
   return db
-    .select()
+    .select(jobStatusColumns)
     .from(jobQueue)
     .where(
       and(eq(jobQueue.isTerminal, false), inArray(jobQueue.status, ["pending", "running"])),

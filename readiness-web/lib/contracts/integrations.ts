@@ -1,8 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { settings, syncRuns, type SyncRun } from "@/lib/db/schema";
-import { getRecentJobs } from "./jobs";
-import type { JobQueueRow } from "@/lib/db/schema";
+import { getRecentJobs, type JobStatusRow } from "./jobs";
 import type { SourceFreshness } from "./types";
 
 const SOURCES: SourceFreshness["source"][] = ["intervals", "coros", "strava"];
@@ -10,7 +9,7 @@ const SOURCES: SourceFreshness["source"][] = ["intervals", "coros", "strava"];
 export type IntegrationStatus = {
   sources: SourceFreshness[];
   recentRuns: SyncRun[];
-  recentJobs: JobQueueRow[];
+  recentJobs: JobStatusRow[];
   workerHeartbeat: {
     status?: string;
     pid?: number;

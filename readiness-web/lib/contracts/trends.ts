@@ -6,7 +6,6 @@ import {
   sleepRecords,
   subjectiveCheckins,
 } from "@/lib/db/schema";
-import type { ReadinessScore, SleepRecord, SubjectiveCheckin } from "@/lib/db/schema";
 
 /**
  * Daily row for trends/history. All fields may be null when a source is
@@ -28,9 +27,27 @@ export type TrendDay = {
 export type TrendRange = {
   days: TrendDay[];
   latest: {
-    score: ReadinessScore | null;
-    sleep: SleepRecord | null;
-    checkin: SubjectiveCheckin | null;
+    score: {
+      score: number;
+      status: string;
+      recommendation: string;
+      confidence: string;
+      computedAt: Date;
+    } | null;
+    sleep: {
+      totalDurationMinutes: number | null;
+      qualityScore: number | null;
+      updatedAt: Date;
+    } | null;
+    checkin: {
+      date: string;
+      energy: number | null;
+      mood: number | null;
+      soreness: number | null;
+      stress: number | null;
+      illness: number | null;
+      updatedAt: Date;
+    } | null;
   };
 };
 
@@ -48,17 +65,30 @@ export async function getTrends(
   const [scores, metrics, sleeps, checkins, latestScore, latestSleep, latestCheckin] =
     await Promise.all([
       db
-        .select()
+        .select({
+          date: readinessScores.date,
+          score: readinessScores.score,
+          status: readinessScores.status,
+        })
         .from(readinessScores)
         .where(
           and(gte(readinessScores.date, fromDate), lte(readinessScores.date, toDate)),
         ),
       db
-        .select()
+        .select({
+          date: dailyMetrics.date,
+          avgSleepHrv: dailyMetrics.avgSleepHrv,
+          rhr: dailyMetrics.rhr,
+          trainingLoad: dailyMetrics.trainingLoad,
+          trainingLoadRatio: dailyMetrics.trainingLoadRatio,
+        })
         .from(dailyMetrics)
         .where(and(gte(dailyMetrics.date, fromDate), lte(dailyMetrics.date, toDate))),
       db
-        .select()
+        .select({
+          date: sleepRecords.date,
+          totalDurationMinutes: sleepRecords.totalDurationMinutes,
+        })
         .from(sleepRecords)
         .where(and(gte(sleepRecords.date, fromDate), lte(sleepRecords.date, toDate))),
       db
@@ -71,19 +101,37 @@ export async function getTrends(
           ),
         ),
       db
-        .select()
+        .select({
+          score: readinessScores.score,
+          status: readinessScores.status,
+          recommendation: readinessScores.recommendation,
+          confidence: readinessScores.confidence,
+          computedAt: readinessScores.computedAt,
+        })
         .from(readinessScores)
         .where(lte(readinessScores.date, toDate))
         .orderBy(desc(readinessScores.date))
         .limit(1),
       db
-        .select()
+        .select({
+          totalDurationMinutes: sleepRecords.totalDurationMinutes,
+          qualityScore: sleepRecords.qualityScore,
+          updatedAt: sleepRecords.updatedAt,
+        })
         .from(sleepRecords)
         .where(lte(sleepRecords.date, toDate))
         .orderBy(desc(sleepRecords.date))
         .limit(1),
       db
-        .select()
+        .select({
+          date: subjectiveCheckins.date,
+          energy: subjectiveCheckins.energy,
+          mood: subjectiveCheckins.mood,
+          soreness: subjectiveCheckins.soreness,
+          stress: subjectiveCheckins.stress,
+          illness: subjectiveCheckins.illness,
+          updatedAt: subjectiveCheckins.updatedAt,
+        })
         .from(subjectiveCheckins)
         .where(eq(subjectiveCheckins.date, toDate))
         .limit(1),

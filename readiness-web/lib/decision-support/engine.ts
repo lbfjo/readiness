@@ -230,8 +230,7 @@ export function buildDailyDecision({
 }): DailyDecision | null {
   if (!issue || issue.status !== "active") return null;
 
-  const injuryModule = INJURY_MODULES[issue.area.toLowerCase()];
-  if (!injuryModule) return null;
+  const injuryModule = INJURY_MODULES[issue.area.toLowerCase()] ?? genericModule(issue.area.toLowerCase());
 
   const session = classifyPlannedSessions(planned);
   const rBand = readinessBand(score?.score);
@@ -296,6 +295,103 @@ export function buildDailyDecision({
     rehabToday,
     redFlags,
   };
+}
+
+function genericModule(area: string): InjuryModule {
+  return {
+    area,
+    classifyTissue(checkin) {
+      if (!checkin) return "yellow";
+      const maxPain = Math.max(
+        checkin.firstStepPain ?? 0,
+        checkin.painWalking ?? 0,
+        checkin.painStairs ?? 0,
+        checkin.painDuringActivity ?? 0,
+        checkin.painAfterActivity ?? 0,
+      );
+      if (maxPain >= 5 || checkin.limp || checkin.mechanicsChanged || checkin.warmupResponse === "worse") {
+        return "red";
+      }
+      if (maxPain >= 3 || (checkin.morningStiffnessMinutes ?? 0) > 0 || checkin.warmupResponse === "same") {
+        return "yellow";
+      }
+      return "green";
+    },
+    classifySessionRisk(session) {
+      if (session.injuryRisk === "none") return "none";
+      if (session.tissueTags.includes(area) && session.injuryRisk === "high") return "high";
+      if (session.tissueTags.includes(area)) return "medium";
+      if (lowerLimbArea(area) && session.tissueTags.includes("impact")) return session.injuryRisk;
+      return session.injuryRisk === "high" ? "medium" : session.injuryRisk;
+    },
+    rehabPrescription(issue, band) {
+      return {
+        title:
+          band === "red"
+            ? `${issue.label} calming block`
+            : `${issue.label} control block`,
+        items: [
+          "Pain-free range isometrics 4 x 30 sec",
+          "Easy mobility in a comfortable range 2 x 8",
+          "Low-load control work 2 x 8",
+        ],
+        avoid: [
+          "painful loading",
+          "speed work",
+          "large range under fatigue",
+          "new high-impact work",
+        ],
+      };
+    },
+    redFlags(checkin) {
+      const flags: string[] = [];
+      if (checkin?.limp) flags.push("Limp present");
+      if (checkin?.mechanicsChanged) flags.push("Mechanics changed");
+      if (checkin?.warmupResponse === "worse") flags.push("Warm-up worsens symptoms");
+      return flags;
+    },
+    tissueReasons(checkin, band) {
+      const reasons: string[] = [];
+      const codes: string[] = [];
+      const label = area.replaceAll("_", " ");
+      if (!checkin) {
+        reasons.push(`No ${label} check-in was recorded, so tissue status stays conservative.`);
+        codes.push("ISSUE_CHECKIN_MISSING");
+        return { reasons, codes };
+      }
+      if (band === "green") {
+        reasons.push(`${titleCase(label)} check-in is green: no meaningful pain, stiffness, limp, or compensation reported.`);
+        codes.push("ISSUE_TISSUE_GREEN");
+      }
+      if (
+        (checkin.firstStepPain ?? 0) >= 3 ||
+        (checkin.painWalking ?? 0) >= 3 ||
+        (checkin.painStairs ?? 0) >= 3 ||
+        (checkin.painDuringActivity ?? 0) >= 3 ||
+        (checkin.painAfterActivity ?? 0) >= 3
+      ) {
+        reasons.push(`${titleCase(label)} symptoms are elevated today.`);
+        codes.push("ISSUE_PAIN_ELEVATED");
+      }
+      if ((checkin.morningStiffnessMinutes ?? 0) > 0) {
+        reasons.push(`Morning stiffness lasted ${checkin.morningStiffnessMinutes} minutes.`);
+        codes.push("ISSUE_MORNING_STIFFNESS");
+      }
+      if (checkin.limp || checkin.mechanicsChanged) {
+        reasons.push("You reported changed mechanics, so tissue loading risk is higher.");
+        codes.push("ISSUE_MECHANICS_CHANGED");
+      }
+      return { reasons, codes };
+    },
+  };
+}
+
+function lowerLimbArea(area: string): boolean {
+  return ["achilles", "calf", "foot", "ankle", "knee", "hamstring", "hip"].includes(area);
+}
+
+function titleCase(value: string): string {
+  return value.replace(/\b\w/gu, (char) => char.toUpperCase());
 }
 
 function readinessBand(score: number | null | undefined): Band {

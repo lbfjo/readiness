@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:stable": "NODE_OPTIONS=--max-old-space-size=4096 next dev --webpack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
