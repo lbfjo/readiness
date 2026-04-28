@@ -1,7 +1,6 @@
 import type {
   ActiveIssue,
   AiInsight,
-  IntervalsActivity,
   IssueCheckin,
   PlannedSession,
   ReadinessScore,
@@ -26,10 +25,30 @@ export type TodaySummary = {
   activeIssue: ActiveIssue | null;
   issueCheckin: IssueCheckin | null;
   plannedSessions: PlannedSession[];
-  intervalsToday: IntervalsActivity[];
+  intervalsToday: TodayIntervalsActivity[];
   freshness: SourceFreshness[];
   insight: AiInsight | null;
   decision: DailyDecision | null;
+};
+
+export type TodayIntervalsActivity = {
+  activityId: string;
+  localDay: string | null;
+  pairedEventId: string | null;
+  name: string | null;
+  type: string | null;
+  startDate: Date | null;
+  startDateLocal: Date | null;
+  movingTime: number | null;
+  elapsedTime: number | null;
+  distanceMeters: number | null;
+  trainingLoad: number | null;
+  intensity: number | null;
+  averageHr: number | null;
+  maxHr: number | null;
+  averageWatts: number | null;
+  weightedAverageWatts: number | null;
+  source: string | null;
 };
 
 export type HistoryPoint = {

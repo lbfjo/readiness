@@ -31,6 +31,11 @@ export function classifyPlannedSessions(planned: PlannedSession[]): SessionClass
   const hasHills = /\bhill|climb|trail|downhill\b/u.test(text);
   const hasSprint = /\bsprint|stride|acceleration|speed\b/u.test(text);
   const hasHamstringStrength = /\bdeadlift|rdl|nordic|hamstring\b/u.test(text);
+  const hasKneeLoad = /\bknee|squat|lunge|downhill|stairs?\b/u.test(text);
+  const hasCalfLoad = /\bcalf|toe|plyo|jump|hills?\b/u.test(text);
+  const hasFootLoad = /\bfoot|ankle|jump|plyo|trail\b/u.test(text);
+  const hasBackLoad = /\bback|deadlift|squat|hinge|row\b/u.test(text);
+  const hasHipLoad = /\bhip|squat|lunge|deadlift|hinge\b/u.test(text);
 
   if (hasRun) {
     tissueTags.add("impact");
@@ -45,6 +50,11 @@ export function classifyPlannedSessions(planned: PlannedSession[]): SessionClass
     tissueTags.add("hamstring");
     reasonCodes.push("SESSION_HAMSTRING_RISK");
   }
+  if (hasRun || hasKneeLoad) tissueTags.add("knee");
+  if (hasRun || hasCalfLoad) tissueTags.add("calf");
+  if (hasRun || hasFootLoad) tissueTags.add("foot");
+  if (hasStrength || hasBackLoad) tissueTags.add("back");
+  if (hasRun || hasStrength || hasHipLoad) tissueTags.add("hip");
 
   const sessionType = (() => {
     if (hasRehab) return "rehab";

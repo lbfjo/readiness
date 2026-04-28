@@ -130,8 +130,20 @@ function IssueSection({
         <PainField
           name="painStairs"
           label="Pain on stairs"
-          help="Good proxy for push-off irritation."
+          help="Useful proxy for daily loading irritation."
           initial={initial?.painStairs ?? null}
+        />
+        <PainField
+          name="painDuringActivity"
+          label="Pain during activity"
+          help="How much does it show up when training?"
+          initial={initial?.painDuringActivity ?? null}
+        />
+        <PainField
+          name="painAfterActivity"
+          label="Pain after activity"
+          help="How reactive is it after loading?"
+          initial={initial?.painAfterActivity ?? null}
         />
         <NumberField
           id={stiffnessId}
@@ -150,6 +162,12 @@ function IssueSection({
           label="Limp or compensation?"
           help="Any obvious change in mechanics should downgrade the day."
           initial={Boolean(initial?.limp)}
+        />
+        <ToggleField
+          name="mechanicsChanged"
+          label="Mechanics changed?"
+          help="Any altered stride, stroke, pedal stroke, or lifting pattern."
+          initial={Boolean(initial?.mechanicsChanged)}
         />
         <WarmupResponseField initial={initial?.warmupResponse ?? null} />
       </div>

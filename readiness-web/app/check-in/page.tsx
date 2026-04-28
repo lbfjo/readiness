@@ -1,8 +1,11 @@
 import { EmptyState } from "@/components/empty-state";
+import { Panel, SectionTitle } from "@/components/section";
 import { getCheckin, getCheckinHistory } from "@/lib/contracts/checkin";
-import { getActiveIssue, getIssueCheckin } from "@/lib/contracts/issue";
+import { getActiveIssue, getIssueCheckin, getIssues } from "@/lib/contracts/issue";
 import { addDaysIso } from "@/lib/contracts/trends";
+import type { ActiveIssue } from "@/lib/db/schema";
 import { appTimezone, todayIsoDate } from "@/lib/time";
+import { createIssueAction, recoverIssueAction } from "./actions";
 import { CheckInForm } from "./form";
 import { CheckinHeatmap } from "./heatmap";
 
@@ -23,13 +26,14 @@ async function loadInitial(date: string) {
   }
   try {
     const fromDate = addDaysIso(date, -(HISTORY_DAYS - 1));
-    const [row, history, activeIssue] = await Promise.all([
+    const [row, history, activeIssue, issues] = await Promise.all([
       getCheckin(date),
       getCheckinHistory(fromDate, date),
       safeGetActiveIssue(),
+      safeGetIssues(),
     ]);
     const issueCheckin = activeIssue ? await safeGetIssueCheckin(activeIssue.id, date) : null;
-    return { ok: true as const, row, history, activeIssue, issueCheckin };
+    return { ok: true as const, row, history, activeIssue, issues, issueCheckin };
   } catch (err) {
     return {
       ok: false as const,
@@ -60,6 +64,7 @@ export default async function CheckInPage() {
 
       {loaded.ok ? (
         <>
+          <IssueManager activeIssue={loaded.activeIssue} issues={loaded.issues} />
           <CheckInForm
             date={date}
             initial={loaded.row}
@@ -86,10 +91,188 @@ async function safeGetActiveIssue() {
   }
 }
 
+async function safeGetIssues() {
+  try {
+    return await getIssues();
+  } catch {
+    return [];
+  }
+}
+
 async function safeGetIssueCheckin(issueId: number, date: string) {
   try {
     return await getIssueCheckin(issueId, date);
   } catch {
     return null;
   }
+}
+
+function IssueManager({
+  activeIssue,
+  issues,
+}: {
+  activeIssue: ActiveIssue | null;
+  issues: ActiveIssue[];
+}) {
+  const recent = issues.filter((issue) => issue.status !== "active").slice(0, 4);
+
+  return (
+    <Panel className="space-y-5">
+      <SectionTitle
+        title="Active Issue"
+        action={
+          activeIssue ? (
+            <span className="font-display text-[10px] uppercase tracking-[0.18em] text-[var(--color-accent)]">
+              {activeIssue.status}
+            </span>
+          ) : (
+            <span className="font-display text-[10px] uppercase tracking-[0.18em] text-[var(--color-subtle)]">
+              none
+            </span>
+          )
+        }
+      />
+
+      {activeIssue ? (
+        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]/40 px-4 py-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-display text-lg font-semibold text-white">
+                {activeIssue.label}
+              </p>
+              <p className="mt-1 text-sm text-[var(--color-muted)]">
+                {[activeIssue.side, activeIssue.area, activeIssue.subtype]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            </div>
+            <form action={recoverIssueAction} className="flex flex-wrap items-center gap-2">
+              <input type="hidden" name="issueId" value={activeIssue.id} />
+              <input
+                name="notes"
+                type="text"
+                placeholder="Recovery note"
+                className="min-w-0 rounded-full border border-[var(--color-border)] bg-transparent px-3 py-2 text-xs text-white placeholder:text-[var(--color-subtle)] focus:border-[var(--color-accent)] focus:outline-none"
+              />
+              <button
+                type="submit"
+                className="rounded-full border border-[var(--color-accent)]/50 px-3 py-2 font-display text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--color-accent)] transition hover:bg-[var(--color-accent-soft)]"
+              >
+                Mark recovered
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      <form action={createIssueAction} className="grid gap-3 md:grid-cols-2">
+        <label className="space-y-1 text-sm text-[var(--color-muted)]">
+          <span className="font-display text-[10px] uppercase tracking-[0.18em]">
+            Area
+          </span>
+          <select
+            name="area"
+            defaultValue="other"
+            required
+            className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-white focus:border-[var(--color-accent)] focus:outline-none"
+          >
+            <option value="achilles">Achilles</option>
+            <option value="calf">Calf</option>
+            <option value="knee">Knee</option>
+            <option value="hamstring">Hamstring</option>
+            <option value="hip">Hip</option>
+            <option value="foot">Foot</option>
+            <option value="back">Back</option>
+            <option value="shoulder">Shoulder</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label className="space-y-1 text-sm text-[var(--color-muted)]">
+          <span className="font-display text-[10px] uppercase tracking-[0.18em]">
+            Side
+          </span>
+          <select
+            name="side"
+            defaultValue={activeIssue?.side ?? "left"}
+            className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-white focus:border-[var(--color-accent)] focus:outline-none"
+          >
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+            <option value="both">Both</option>
+            <option value="unknown">Unknown</option>
+          </select>
+        </label>
+        <label className="space-y-1 text-sm text-[var(--color-muted)] md:col-span-2">
+          <span className="font-display text-[10px] uppercase tracking-[0.18em]">
+            Label
+          </span>
+          <input
+            name="label"
+            required
+            placeholder="Right knee niggle"
+            className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-white placeholder:text-[var(--color-subtle)] focus:border-[var(--color-accent)] focus:outline-none"
+          />
+        </label>
+        <label className="space-y-1 text-sm text-[var(--color-muted)]">
+          <span className="font-display text-[10px] uppercase tracking-[0.18em]">
+            Type
+          </span>
+          <input
+            name="subtype"
+            placeholder="tendon, muscle, joint"
+            className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-white placeholder:text-[var(--color-subtle)] focus:border-[var(--color-accent)] focus:outline-none"
+          />
+        </label>
+        <label className="space-y-1 text-sm text-[var(--color-muted)]">
+          <span className="font-display text-[10px] uppercase tracking-[0.18em]">
+            Suspected issue
+          </span>
+          <input
+            name="suspectedIssue"
+            placeholder="Patellar tendon irritation"
+            className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-white placeholder:text-[var(--color-subtle)] focus:border-[var(--color-accent)] focus:outline-none"
+          />
+        </label>
+        <label className="space-y-1 text-sm text-[var(--color-muted)] md:col-span-2">
+          <span className="font-display text-[10px] uppercase tracking-[0.18em]">
+            Notes
+          </span>
+          <input
+            name="notes"
+            placeholder="Started after hills, worse on stairs"
+            className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-white placeholder:text-[var(--color-subtle)] focus:border-[var(--color-accent)] focus:outline-none"
+          />
+        </label>
+        <div className="md:col-span-2">
+          <button
+            type="submit"
+            className="rounded-full bg-[var(--color-accent)] px-4 py-2 font-display text-[10px] font-bold uppercase tracking-[0.18em] text-[#0b1320] transition hover:brightness-110"
+          >
+            Add issue
+          </button>
+        </div>
+      </form>
+
+      {recent.length > 0 ? (
+        <div className="space-y-2">
+          <p className="font-display text-[10px] uppercase tracking-[0.18em] text-[var(--color-subtle)]">
+            Recent
+          </p>
+          <div className="grid gap-2 md:grid-cols-2">
+            {recent.map((issue) => (
+              <div
+                key={issue.id}
+                className="rounded-2xl border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-muted)]"
+              >
+                <span className="text-white">{issue.label}</span>
+                <span className="ml-2 text-[var(--color-subtle)]">
+                  {issue.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </Panel>
+  );
 }

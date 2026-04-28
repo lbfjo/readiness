@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { upsertCheckin } from "@/lib/contracts/checkin";
 import { enqueueJob } from "@/lib/contracts/jobs";
-import { upsertIssueCheckin } from "@/lib/contracts/issue";
+import { createActiveIssue, markIssueRecovered, upsertIssueCheckin } from "@/lib/contracts/issue";
 import { todayIsoDate } from "@/lib/time";
 
 /**
@@ -57,6 +57,8 @@ const Schema = z.object({
   firstStepPain: OptionalPain,
   painWalking: OptionalPain,
   painStairs: OptionalPain,
+  painDuringActivity: OptionalPain,
+  painAfterActivity: OptionalPain,
   morningStiffnessMinutes: OptionalInteger,
   limp: z
     .union([z.literal("on"), z.literal("true"), z.literal("1"), z.literal("")])
@@ -66,6 +68,10 @@ const Schema = z.object({
     .union([z.literal(""), z.literal("better"), z.literal("same"), z.literal("worse")])
     .optional()
     .transform((v) => (v && v.length > 0 ? v : null)),
+  mechanicsChanged: z
+    .union([z.literal("on"), z.literal("true"), z.literal("1"), z.literal("")])
+    .optional()
+    .transform((v) => v === "on" || v === "true" || v === "1"),
   issueNotes: z
     .string()
     .max(1000, "issue notes too long")
@@ -99,10 +105,13 @@ export async function saveCheckin(
     firstStepPain: formData.get("firstStepPain")?.toString() || undefined,
     painWalking: formData.get("painWalking")?.toString() || undefined,
     painStairs: formData.get("painStairs")?.toString() || undefined,
+    painDuringActivity: formData.get("painDuringActivity")?.toString() || undefined,
+    painAfterActivity: formData.get("painAfterActivity")?.toString() || undefined,
     morningStiffnessMinutes:
       formData.get("morningStiffnessMinutes")?.toString() || undefined,
     limp: formData.get("limp")?.toString() || undefined,
     warmupResponse: formData.get("warmupResponse")?.toString() || undefined,
+    mechanicsChanged: formData.get("mechanicsChanged")?.toString() || undefined,
     issueNotes: formData.get("issueNotes")?.toString() || undefined,
   };
 
@@ -147,9 +156,12 @@ export async function saveCheckin(
         firstStepPain: parsed.data.firstStepPain,
         painWalking: parsed.data.painWalking,
         painStairs: parsed.data.painStairs,
+        painDuringActivity: parsed.data.painDuringActivity,
+        painAfterActivity: parsed.data.painAfterActivity,
         morningStiffnessMinutes: parsed.data.morningStiffnessMinutes,
         limp: parsed.data.limp,
         warmupResponse: parsed.data.warmupResponse,
+        mechanicsChanged: parsed.data.mechanicsChanged,
         notes: parsed.data.issueNotes,
       });
     }
@@ -181,4 +193,69 @@ export async function saveCheckin(
       message: err instanceof Error ? err.message : "Failed to save check-in",
     };
   }
+}
+
+const NewIssueSchema = z.object({
+  area: z.string().trim().min(1).max(80),
+  side: z.string().trim().max(40).optional(),
+  label: z.string().trim().min(2).max(120),
+  subtype: z.string().trim().max(120).optional(),
+  suspectedIssue: z.string().trim().max(200).optional(),
+  notes: z.string().trim().max(1000).optional(),
+});
+
+export async function createIssueAction(formData: FormData) {
+  const parsed = NewIssueSchema.safeParse({
+    area: formData.get("area")?.toString() ?? "",
+    side: formData.get("side")?.toString() ?? "",
+    label: formData.get("label")?.toString() ?? "",
+    subtype: formData.get("subtype")?.toString() ?? "",
+    suspectedIssue: formData.get("suspectedIssue")?.toString() ?? "",
+    notes: formData.get("notes")?.toString() ?? "",
+  });
+  if (!parsed.success) {
+    throw new Error("Issue form is invalid.");
+  }
+
+  await createActiveIssue({
+    ...parsed.data,
+    side: parsed.data.side || null,
+    subtype: parsed.data.subtype || null,
+    suspectedIssue: parsed.data.suspectedIssue || null,
+    notes: parsed.data.notes || null,
+  });
+  await enqueueIssueRefresh();
+}
+
+const RecoverIssueSchema = z.object({
+  issueId: z.coerce.number().int().positive(),
+  notes: z.string().trim().max(1000).optional(),
+});
+
+export async function recoverIssueAction(formData: FormData) {
+  const parsed = RecoverIssueSchema.safeParse({
+    issueId: formData.get("issueId")?.toString() ?? "",
+    notes: formData.get("notes")?.toString() ?? "",
+  });
+  if (!parsed.success) {
+    throw new Error("Recovery form is invalid.");
+  }
+
+  await markIssueRecovered(parsed.data.issueId, parsed.data.notes || null);
+  await enqueueIssueRefresh();
+}
+
+async function enqueueIssueRefresh() {
+  const date = todayIsoDate();
+  try {
+    await enqueueJob({
+      kind: "score_decision_insight",
+      payload: { date },
+      requestedBy: "issue-management",
+    });
+  } catch {
+    // Issue state still saves without the local poller being available.
+  }
+  revalidatePath("/check-in");
+  revalidatePath("/today");
 }
